@@ -25,19 +25,9 @@ from routers.paper import router as paper_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期"""
-    # 启动时初始化
+    # 初始化用户数据库（必须在最前面）
     init_db()
-    bridge.init()
-
-    # 注册 WebSocket 推送
-    async def ws_push(topic: str, data: dict):
-        await ws_manager.broadcast({"topic": topic, "data": data})
-
-    bridge.register_ws_callback(ws_push)
-
     yield
-
-    # 关闭时清理
     pass
 
 

@@ -53,14 +53,16 @@ class VnpyBridge:
 
     @property
     def main_engine(self) -> MainEngine:
+        self.ensure_init()
         if self._main_engine is None:
-            raise RuntimeError("引擎未初始化，请先调用 init()")
+            raise RuntimeError("vnpy 引擎初始化失败，请检查 vnpy 安装")
         return self._main_engine
 
     @property
     def event_engine(self) -> EventEngine:
+        self.ensure_init()
         if self._event_engine is None:
-            raise RuntimeError("引擎未初始化，请先调用 init()")
+            raise RuntimeError("vnpy 引擎初始化失败")
         return self._event_engine
 
     def init(self):
@@ -69,17 +71,27 @@ class VnpyBridge:
             if self._main_engine is not None:
                 return
 
-            self._event_engine = EventEngine()
-            self._main_engine = MainEngine(self._event_engine)
+            try:
+                self._event_engine = EventEngine()
+                self._main_engine = MainEngine(self._event_engine)
 
-            # 注册事件回调
-            self._register_event(EVENT_TICK, self._on_tick)
-            self._register_event(EVENT_ORDER, self._on_order)
-            self._register_event(EVENT_TRADE, self._on_trade)
-            self._register_event(EVENT_POSITION, self._on_position)
-            self._register_event(EVENT_ACCOUNT, self._on_account)
-            self._register_event(EVENT_CONTRACT, self._on_contract)
-            self._register_event(EVENT_LOG, self._on_log)
+                # 注册事件回调
+                self._register_event(EVENT_TICK, self._on_tick)
+                self._register_event(EVENT_ORDER, self._on_order)
+                self._register_event(EVENT_TRADE, self._on_trade)
+                self._register_event(EVENT_POSITION, self._on_position)
+                self._register_event(EVENT_ACCOUNT, self._on_account)
+                self._register_event(EVENT_CONTRACT, self._on_contract)
+                self._register_event(EVENT_LOG, self._on_log)
+            except Exception:
+                # vnpy 引擎初始化失败时记录但不断裂应用
+                self._event_engine = None
+                self._main_engine = None
+
+    def ensure_init(self):
+        """确保引擎已初始化"""
+        if self._main_engine is None:
+            self.init()
 
     def _register_event(self, event_type: str, handler: Callable):
         """注册事件处理"""
