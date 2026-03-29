@@ -136,3 +136,27 @@ async def get_variables(name: str):
         return bridge.get_strategy_variables(name)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/instances/{name}/logs")
+async def get_strategy_logs(name: str):
+    """获取策略日志"""
+    logs = bridge.get_logs()
+    # 按策略名过滤
+    strategy_logs = [
+        l for l in logs
+        if name in l.get("msg", "") or name in l.get("gateway_name", "")
+    ]
+    return strategy_logs[-100:]  # 最近 100 条
+
+
+@router.get("/instances/{name}/trades")
+async def get_strategy_trades(name: str):
+    """获取策略成交记录（按 strategy_name 过滤）"""
+    all_trades = bridge.get_all_trades()
+    # 策略成交通过 reference 字段关联
+    strategy_trades = [
+        t for t in all_trades
+        if name in t.get("vt_orderid", "")
+    ]
+    return strategy_trades

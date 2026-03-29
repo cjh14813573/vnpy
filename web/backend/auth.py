@@ -241,3 +241,25 @@ async def update_password(
     """修改密码"""
     change_password(current_user["username"], req.old_password, req.new_password)
     return {"message": "密码修改成功"}
+
+
+@router.post("/logout")
+async def logout():
+    """退出登录（客户端清除 Token 即可）"""
+    return {"message": "已退出"}
+
+
+@router.post("/refresh")
+async def refresh_token(current_user: dict = Depends(get_current_user)):
+    """刷新 Token"""
+    user = get_user(current_user["username"])
+    token = create_access_token(
+        {"sub": user["username"], "role": user["role"]},
+        remember_me=False,
+    )
+    return TokenResponse(
+        access_token=token,
+        expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        username=user["username"],
+        role=user["role"],
+    )

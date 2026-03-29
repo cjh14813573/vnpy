@@ -4,7 +4,9 @@ import client from './client';
 export const authApi = {
   login: (data: { username: string; password: string; remember_me?: boolean }) =>
     client.post('/api/auth/login', data),
+  logout: () => client.post('/api/auth/logout'),
   me: () => client.get('/api/auth/me'),
+  refresh: () => client.post('/api/auth/refresh'),
   changePassword: (data: { old_password: string; new_password: string }) =>
     client.put('/api/auth/password', data),
 };
@@ -63,6 +65,8 @@ export const strategyApi = {
   startAll: () => client.post('/api/strategy/instances/start-all'),
   stopAll: () => client.post('/api/strategy/instances/stop-all'),
   variables: (name: string) => client.get(`/api/strategy/instances/${name}/variables`),
+  logs: (name: string) => client.get(`/api/strategy/instances/${name}/logs`),
+  trades: (name: string) => client.get(`/api/strategy/instances/${name}/trades`),
 };
 
 // ============ 回测 ============

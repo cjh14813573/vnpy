@@ -11,6 +11,7 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import StorageIcon from '@mui/icons-material/Storage';
+import SecurityIcon from '@mui/icons-material/Security';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useAuthStore } from '../stores/authStore';
 
@@ -23,6 +24,7 @@ const menuItems = [
   { text: '策略管理', icon: <PsychologyIcon />, path: '/strategy' },
   { text: '回测中心', icon: <AssessmentIcon />, path: '/backtest' },
   { text: '数据管理', icon: <StorageIcon />, path: '/data' },
+  { text: '风控设置', icon: <SecurityIcon />, path: '/risk' },
   { text: '系统设置', icon: <SettingsIcon />, path: '/settings' },
 ];
 

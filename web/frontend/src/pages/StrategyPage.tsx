@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Grid, Card, CardContent, CardActions, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -8,6 +9,7 @@ import {
 import { strategyApi } from '../api';
 
 export default function StrategyPage() {
+  const navigate = useNavigate();
   const [classes, setClasses] = useState<string[]>([]);
   const [instances, setInstances] = useState<any[]>([]);
   const [msg, setMsg] = useState('');
@@ -17,11 +19,6 @@ export default function StrategyPage() {
   const [addForm, setAddForm] = useState({ class_name: '', strategy_name: '', vt_symbol: '' });
   const [classParams, setClassParams] = useState<Record<string, any>>({});
   const [addSetting, setAddSetting] = useState<Record<string, string>>({});
-
-  // 详情弹窗
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailInstance, setDetailInstance] = useState<any>(null);
-  const [detailVars, setDetailVars] = useState<Record<string, any>>({});
 
   const load = async () => {
     try {
@@ -68,15 +65,6 @@ export default function StrategyPage() {
     } catch (err: any) {
       setMsg(`操作失败: ${err.response?.data?.detail || err.message}`);
     }
-  };
-
-  const openDetail = async (instance: any) => {
-    setDetailInstance(instance);
-    try {
-      const res = await strategyApi.variables(instance.strategy_name);
-      setDetailVars(res.data);
-    } catch { setDetailVars({}); }
-    setDetailOpen(true);
   };
 
   return (
@@ -129,7 +117,7 @@ export default function StrategyPage() {
             ) : instances.map((s) => (
               <TableRow key={s.strategy_name}>
                 <TableCell>
-                  <Button size="small" onClick={() => openDetail(s)}>{s.strategy_name}</Button>
+                  <Button size="small" onClick={() => navigate(`/strategy/${s.strategy_name}`)}>{s.strategy_name}</Button>
                 </TableCell>
                 <TableCell>{s.class_name}</TableCell>
                 <TableCell>{s.vt_symbol}</TableCell>
@@ -178,26 +166,6 @@ export default function StrategyPage() {
         </DialogActions>
       </Dialog>
 
-      {/* 策略详情弹窗 */}
-      <Dialog open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>策略详情: {detailInstance?.strategy_name}</DialogTitle>
-        <DialogContent>
-          <Typography variant="subtitle2" gutterBottom>参数</Typography>
-          {detailInstance?.parameters && Object.entries(detailInstance.parameters).map(([k, v]) => (
-            <Typography key={k} variant="body2">{k}: {String(v)}</Typography>
-          ))}
-          <Typography variant="subtitle2" sx={{ mt: 2 }} gutterBottom>变量</Typography>
-          {Object.entries(detailVars).map(([k, v]) => (
-            <Typography key={k} variant="body2">{k}: {String(v)}</Typography>
-          ))}
-          {Object.keys(detailVars).length === 0 && (
-            <Typography variant="body2" color="text.secondary">暂无变量数据（策略未运行）</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDetailOpen(false)}>关闭</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }

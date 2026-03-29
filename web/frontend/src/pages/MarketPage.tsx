@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import { marketApi } from '../api';
 import { useMarketStore } from '../stores/marketStore';
+import KLineChart from '../components/KLineChart';
 
 export default function MarketPage() {
   const [contracts, setContracts] = useState<any[]>([]);
@@ -119,6 +120,11 @@ export default function MarketPage() {
       {/* 历史K线 */}
       {historyData.length > 0 && (
         <>
+          <Typography variant="h6" gutterBottom>K线图表</Typography>
+          <Paper sx={{ mb: 3, p: 1 }}>
+            <KLineChart data={historyData} title={`${selectedContract?.name || selectedContract?.vt_symbol} K线`} />
+          </Paper>
+
           <Typography variant="h6" gutterBottom>K线数据（{historyData.length} 条）</Typography>
           <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
             <Table size="small" stickyHeader>
