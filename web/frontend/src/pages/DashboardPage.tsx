@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Box, Grid, Card, CardContent, Typography, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Paper, Chip,
-} from '@mui/material';
+import { Card, Typography, Table, Tag, Row, Col } from '@douyinfe/semi-ui';
 import { tradingApi, systemApi } from '../api';
 
 export default function DashboardPage() {
@@ -16,18 +13,13 @@ export default function DashboardPage() {
     const load = async () => {
       try {
         const [acc, pos, orders, logRes, statusRes] = await Promise.all([
-          tradingApi.accounts(),
-          tradingApi.positions(),
-          tradingApi.activeOrders(),
-          systemApi.logs(),
-          systemApi.status(),
+          tradingApi.accounts(), tradingApi.positions(),
+          tradingApi.activeOrders(), systemApi.logs(), systemApi.status(),
         ]);
-        setAccounts(acc.data);
-        setPositions(pos.data);
-        setActiveOrders(orders.data);
-        setLogs(logRes.data.slice(-20).reverse());
+        setAccounts(acc.data); setPositions(pos.data);
+        setActiveOrders(orders.data); setLogs(logRes.data.slice(-20).reverse());
         setStatus(statusRes.data);
-      } catch { /* 初始加载可能失败 */ }
+      } catch { /* ignore */ }
     };
     load();
     const timer = setInterval(load, 5000);
@@ -37,113 +29,68 @@ export default function DashboardPage() {
   const totalBalance = accounts.reduce((s, a) => s + (a.balance || 0), 0);
   const totalPnl = positions.reduce((s, p) => s + (p.pnl || 0), 0);
 
+  const columns = [
+    { title: '合约', dataIndex: 'vt_symbol', width: 140 },
+    { title: '方向', dataIndex: 'direction', width: 80, render: (v: string) => (
+      <Tag color={v === '多' ? 'green' : 'red'}>{v}</Tag>
+    )},
+    { title: '数量', dataIndex: 'volume', width: 80, align: 'right' as const },
+    { title: '冻结', dataIndex: 'frozen', width: 80, align: 'right' as const },
+    { title: '均价', dataIndex: 'price', width: 100, align: 'right' as const, render: (v: number) => v?.toFixed(2) },
+    { title: '盈亏', dataIndex: 'pnl', width: 120, align: 'right' as const, render: (v: number) => (
+      <Typography.Text type={v >= 0 ? 'success' : 'danger'} strong>{v?.toFixed(2)}</Typography.Text>
+    )},
+  ];
+
+  const logColumns = [
+    { title: '时间', dataIndex: 'time', width: 90, render: (v: string) => v?.slice(11, 19) || '-' },
+    { title: '级别', dataIndex: 'level', width: 80, render: (v: string) => <Tag>{v || 'INFO'}</Tag> },
+    { title: '内容', dataIndex: 'msg' },
+  ];
+
   return (
-    <Box>
-      <Typography variant="h5" gutterBottom fontWeight={600}>
-        总览
-      </Typography>
+    <div>
+      <Typography.Title heading={4}>总览</Typography.Title>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col span={6}>
+          <Card bodyStyle={{ padding: 20 }}>
+            <Typography.Text type="tertiary">账户总资金</Typography.Text>
+            <Typography.Title heading={2} style={{ margin: '4px 0 0' }}>¥{totalBalance.toLocaleString()}</Typography.Title>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card bodyStyle={{ padding: 20 }}>
+            <Typography.Text type="tertiary">持仓盈亏</Typography.Text>
+            <Typography.Title heading={2} style={{ margin: '4px 0 0', color: totalPnl >= 0 ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' }}>
+              ¥{totalPnl.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </Typography.Title>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card bodyStyle={{ padding: 20 }}>
+            <Typography.Text type="tertiary">活跃委托</Typography.Text>
+            <Typography.Title heading={2} style={{ margin: '4px 0 0' }}>{activeOrders.length}</Typography.Title>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card bodyStyle={{ padding: 20 }}>
+            <Typography.Text type="tertiary">已连接网关</Typography.Text>
+            <Typography.Title heading={2} style={{ margin: '4px 0 0' }}>{status?.gateways?.length || 0}</Typography.Title>
+          </Card>
+        </Col>
+      </Row>
 
-      {/* 概览卡片 */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary" variant="body2">账户总资金</Typography>
-              <Typography variant="h5" fontWeight={600}>
-                ¥{totalBalance.toLocaleString()}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary" variant="body2">持仓盈亏</Typography>
-              <Typography variant="h5" fontWeight={600} color={totalPnl >= 0 ? 'success.main' : 'error.main'}>
-                ¥{totalPnl.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary" variant="body2">活跃委托</Typography>
-              <Typography variant="h5" fontWeight={600}>{activeOrders.length}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card>
-            <CardContent>
-              <Typography color="text.secondary" variant="body2">已连接网关</Typography>
-              <Typography variant="h5" fontWeight={600}>
-                {status?.gateways?.length || 0}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      <Typography.Title heading={5} style={{ marginBottom: 12 }}>持仓</Typography.Title>
+      <Card style={{ marginBottom: 24, borderRadius: 12 }}>
+        <Table columns={columns} dataSource={positions} pagination={false} size="small"
+          empty="暂无持仓" />
+      </Card>
 
-      {/* 持仓表格 */}
-      <Typography variant="h6" gutterBottom>持仓</Typography>
-      <TableContainer component={Paper} sx={{ mb: 3 }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>合约</TableCell>
-              <TableCell>方向</TableCell>
-              <TableCell align="right">数量</TableCell>
-              <TableCell align="right">冻结</TableCell>
-              <TableCell align="right">均价</TableCell>
-              <TableCell align="right">盈亏</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {positions.length === 0 ? (
-              <TableRow><TableCell colSpan={6} align="center">暂无持仓</TableCell></TableRow>
-            ) : positions.map((p, i) => (
-              <TableRow key={i}>
-                <TableCell>{p.vt_symbol}</TableCell>
-                <TableCell>
-                  <Chip label={p.direction} size="small" color={p.direction === '多' ? 'success' : 'error'} />
-                </TableCell>
-                <TableCell align="right">{p.volume}</TableCell>
-                <TableCell align="right">{p.frozen}</TableCell>
-                <TableCell align="right">{p.price?.toFixed(2)}</TableCell>
-                <TableCell align="right" sx={{ color: p.pnl >= 0 ? 'success.main' : 'error.main' }}>
-                  {p.pnl?.toFixed(2)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* 最新日志 */}
-      <Typography variant="h6" gutterBottom>系统日志</Typography>
-      <TableContainer component={Paper}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>时间</TableCell>
-              <TableCell>级别</TableCell>
-              <TableCell>内容</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {logs.length === 0 ? (
-              <TableRow><TableCell colSpan={3} align="center">暂无日志</TableCell></TableRow>
-            ) : logs.map((l, i) => (
-              <TableRow key={i}>
-                <TableCell sx={{ whiteSpace: 'nowrap' }}>{l.time?.slice(11, 19) || '-'}</TableCell>
-                <TableCell><Chip label={l.level || 'INFO'} size="small" /></TableCell>
-                <TableCell>{l.msg}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+      <Typography.Title heading={5} style={{ marginBottom: 12 }}>系统日志</Typography.Title>
+      <Card style={{ borderRadius: 12 }}>
+        <Table columns={logColumns} dataSource={logs} pagination={false} size="small"
+          empty="暂无日志" />
+      </Card>
+    </div>
   );
 }

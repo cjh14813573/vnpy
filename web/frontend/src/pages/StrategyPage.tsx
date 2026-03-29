@@ -1,20 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Box, Typography, Grid, Card, CardContent, CardActions, Button,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Select, MenuItem, FormControl, InputLabel, Alert,
-} from '@mui/material';
+import { Typography, Card, Button, Table, Tag, Row, Col, Modal, Input, Select, Toast, Space } from '@douyinfe/semi-ui';
 import { strategyApi } from '../api';
 
 export default function StrategyPage() {
   const navigate = useNavigate();
   const [classes, setClasses] = useState<string[]>([]);
   const [instances, setInstances] = useState<any[]>([]);
-  const [msg, setMsg] = useState('');
-
-  // 添加策略弹窗
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({ class_name: '', strategy_name: '', vt_symbol: '' });
   const [classParams, setClassParams] = useState<Record<string, any>>({});
@@ -23,8 +15,7 @@ export default function StrategyPage() {
   const load = async () => {
     try {
       const [cls, inst] = await Promise.all([strategyApi.classes(), strategyApi.instances()]);
-      setClasses(cls.data);
-      setInstances(inst.data);
+      setClasses(cls.data); setInstances(inst.data);
     } catch { /* ignore */ }
   };
 
@@ -47,10 +38,10 @@ export default function StrategyPage() {
     try {
       await strategyApi.add({ ...addForm, setting: addSetting });
       setAddOpen(false);
-      setMsg(`策略 ${addForm.strategy_name} 已添加`);
+      Toast.success(`策略 ${addForm.strategy_name} 已添加`);
       load();
     } catch (err: any) {
-      setMsg(`添加失败: ${err.response?.data?.detail || err.message}`);
+      Toast.error(err.response?.data?.detail || '添加失败');
     }
   };
 
@@ -60,112 +51,91 @@ export default function StrategyPage() {
       else if (action === 'start') await strategyApi.start(name);
       else if (action === 'stop') await strategyApi.stop(name);
       else if (action === 'remove') await strategyApi.remove(name);
-      setMsg(`操作成功`);
+      Toast.success('操作成功');
       load();
     } catch (err: any) {
-      setMsg(`操作失败: ${err.response?.data?.detail || err.message}`);
+      Toast.error(err.response?.data?.detail || '操作失败');
     }
   };
 
+  const statusColor = (s: any) => s.trading ? 'green' : s.inited ? 'blue' : 'grey';
+  const statusText = (s: any) => s.trading ? '运行中' : s.inited ? '已初始化' : '未初始化';
+
+  const instCols = [
+    { title: '策略名', dataIndex: 'strategy_name', render: (v: string) => (
+      <Button theme="borderless" onClick={() => navigate(`/strategy/${v}`)}>{v}</Button>
+    )},
+    { title: '类名', dataIndex: 'class_name' },
+    { title: '合约', dataIndex: 'vt_symbol' },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_: any, r: any) => (
+      <Tag color={statusColor(r)}>{statusText(r)}</Tag>
+    )},
+    { title: '操作', width: 300, render: (_: any, r: any) => (
+      <Space>
+        <Button size="small" onClick={() => handleAction('init', r.strategy_name)}>初始化</Button>
+        <Button size="small" theme="solid" type="primary" onClick={() => handleAction('start', r.strategy_name)}>启动</Button>
+        <Button size="small" theme="solid" type="danger" onClick={() => handleAction('stop', r.strategy_name)}>停止</Button>
+        <Button size="small" theme="solid" type="danger" onClick={() => handleAction('remove', r.strategy_name)}>删除</Button>
+      </Space>
+    )},
+  ];
+
   return (
-    <Box>
-      <Typography variant="h5" gutterBottom fontWeight={600}>策略管理</Typography>
-      {msg && <Alert severity={msg.includes('失败') ? 'error' : 'success'} sx={{ mb: 2 }} onClose={() => setMsg('')}>{msg}</Alert>}
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <Typography.Title heading={4} style={{ margin: 0 }}>策略管理</Typography.Title>
+        <Space>
+          <Button theme="solid" onClick={openAdd}>添加策略</Button>
+          <Button onClick={() => strategyApi.initAll().then(load)}>全部初始化</Button>
+          <Button theme="solid" type="primary" onClick={() => strategyApi.startAll().then(load)}>全部启动</Button>
+          <Button theme="solid" type="danger" onClick={() => strategyApi.stopAll().then(load)}>全部停止</Button>
+        </Space>
+      </div>
 
-      {/* 批量操作 */}
-      <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
-        <Button variant="contained" size="small" onClick={openAdd}>添加策略</Button>
-        <Button variant="outlined" size="small" onClick={() => strategyApi.initAll().then(load)}>全部初始化</Button>
-        <Button variant="outlined" size="small" color="success" onClick={() => strategyApi.startAll().then(load)}>全部启动</Button>
-        <Button variant="outlined" size="small" color="error" onClick={() => strategyApi.stopAll().then(load)}>全部停止</Button>
-      </Box>
-
-      {/* 策略类市场 */}
-      <Typography variant="h6" gutterBottom>策略类</Typography>
-      <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Typography.Title heading={5} style={{ marginBottom: 12 }}>策略类</Typography.Title>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {classes.map((cls) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={cls}>
-            <Card variant="outlined">
-              <CardContent sx={{ pb: 1 }}>
-                <Typography variant="subtitle1" fontWeight={600}>{cls}</Typography>
-                <Typography variant="body2" color="text.secondary">CTA 策略模板</Typography>
-              </CardContent>
-              <CardActions>
-                <Button size="small" onClick={() => { setAddForm({ ...addForm, class_name: cls }); handleClassChange(cls); setAddOpen(true); }}>
-                  部署
-                </Button>
-              </CardActions>
+          <Col span={6} key={cls}>
+            <div onClick={() => { setAddForm({ ...addForm, class_name: cls }); handleClassChange(cls); setAddOpen(true); }} style={{ cursor: 'pointer' }}>
+            <Card bodyStyle={{ padding: 16 }} style={{ borderRadius: 12 }}>
+              <Typography.Text strong>{cls}</Typography.Text>
+              <br /><Typography.Text type="tertiary" size="small">CTA 策略模板</Typography.Text>
             </Card>
-          </Grid>
+            </div>
+          </Col>
         ))}
-      </Grid>
+      </Row>
 
-      {/* 已部署策略 */}
-      <Typography variant="h6" gutterBottom>已部署策略</Typography>
-      <TableContainer component={Paper}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>策略名</TableCell><TableCell>类名</TableCell>
-              <TableCell>合约</TableCell><TableCell>状态</TableCell>
-              <TableCell>操作</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {instances.length === 0 ? (
-              <TableRow><TableCell colSpan={5} align="center">暂无策略实例</TableCell></TableRow>
-            ) : instances.map((s) => (
-              <TableRow key={s.strategy_name}>
-                <TableCell>
-                  <Button size="small" onClick={() => navigate(`/strategy/${s.strategy_name}`)}>{s.strategy_name}</Button>
-                </TableCell>
-                <TableCell>{s.class_name}</TableCell>
-                <TableCell>{s.vt_symbol}</TableCell>
-                <TableCell>
-                  <Chip label={s.inited ? (s.trading ? '运行中' : '已初始化') : '未初始化'} size="small"
-                    color={s.trading ? 'success' : s.inited ? 'info' : 'default'} />
-                </TableCell>
-                <TableCell>
-                  <Button size="small" onClick={() => handleAction('init', s.strategy_name)}>初始化</Button>
-                  <Button size="small" color="success" onClick={() => handleAction('start', s.strategy_name)}>启动</Button>
-                  <Button size="small" color="error" onClick={() => handleAction('stop', s.strategy_name)}>停止</Button>
-                  <Button size="small" color="error" onClick={() => handleAction('remove', s.strategy_name)}>删除</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <Typography.Title heading={5} style={{ marginBottom: 12 }}>已部署策略</Typography.Title>
+      <Card style={{ borderRadius: 12 }}>
+        <Table columns={instCols} dataSource={instances} pagination={false} size="small" empty="暂无策略实例" />
+      </Card>
 
-      {/* 添加策略弹窗 */}
-      <Dialog open={addOpen} onClose={() => setAddOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>添加策略</DialogTitle>
-        <DialogContent>
-          <FormControl fullWidth margin="dense">
-            <InputLabel>策略类</InputLabel>
-            <Select value={addForm.class_name} label="策略类" onChange={(e) => handleClassChange(e.target.value)}>
-              {classes.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <TextField label="策略名称" fullWidth margin="dense" value={addForm.strategy_name}
-            onChange={(e) => setAddForm({ ...addForm, strategy_name: e.target.value })} />
-          <TextField label="合约 (vt_symbol)" fullWidth margin="dense" value={addForm.vt_symbol}
-            onChange={(e) => setAddForm({ ...addForm, vt_symbol: e.target.value })} placeholder="rb2410.SHFE" />
+      <Modal title="添加策略" visible={addOpen} onCancel={() => setAddOpen(false)} footer={null} style={{ borderRadius: 12 }}>
+        <div>
+          <label style={{ marginBottom: 8, display: 'block' }}>策略类</label>
+          <Select value={addForm.class_name} onChange={(v) => handleClassChange(v as string)} style={{ width: '100%', marginBottom: 12 }}
+            placeholder="选择策略类" optionList={classes.map((c) => ({ value: c, label: c }))} />
+          <label style={{ marginBottom: 8, display: 'block' }}>策略名称</label>
+          <Input value={addForm.strategy_name} onChange={(v) => setAddForm({ ...addForm, strategy_name: v })} style={{ marginBottom: 12 }} />
+          <label style={{ marginBottom: 8, display: 'block' }}>合约 (vt_symbol)</label>
+          <Input value={addForm.vt_symbol} onChange={(v) => setAddForm({ ...addForm, vt_symbol: v })} placeholder="rb2410.SHFE" style={{ marginBottom: 12 }} />
           {Object.entries(classParams).length > 0 && (
-            <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>策略参数</Typography>
+            <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>策略参数</Typography.Text>
           )}
           {Object.entries(classParams).map(([key, val]: [string, any]) => (
-            <TextField key={key} label={key} fullWidth size="small" margin="dense"
-              value={addSetting[key] ?? ''} onChange={(e) => setAddSetting({ ...addSetting, [key]: e.target.value })}
-              helperText={`默认: ${val.default ?? '-'}`} />
+            <div key={key}>
+              <label style={{ marginBottom: 4, display: 'block' }}>{key}</label>
+              <Input value={addSetting[key] ?? ''} onChange={(v) => setAddSetting({ ...addSetting, [key]: v })}
+              suffix={`默认: ${val.default ?? '-'}`} style={{ marginBottom: 8 }} />
+            </div>
           ))}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddOpen(false)}>取消</Button>
-          <Button variant="contained" onClick={handleAdd} disabled={!addForm.class_name || !addForm.strategy_name}>添加</Button>
-        </DialogActions>
-      </Dialog>
-
-    </Box>
+          <Button theme="solid" block size="large" onClick={handleAdd}
+            disabled={!addForm.class_name || !addForm.strategy_name} style={{ marginTop: 16, borderRadius: 10 }}>
+            添加
+          </Button>
+        </div>
+      </Modal>
+    </div>
   );
 }

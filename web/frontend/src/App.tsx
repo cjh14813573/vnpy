@@ -1,7 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material';
-import CssBaseline from '@mui/material/CssBaseline';
-
+import { ConfigProvider } from '@douyinfe/semi-ui';
 import AppLayout from './components/AppLayout';
 import AuthGuard from './components/AuthGuard';
 import LoginPage from './pages/LoginPage';
@@ -15,21 +13,9 @@ import DataPage from './pages/DataPage';
 import RiskPage from './pages/RiskPage';
 import SettingsPage from './pages/SettingsPage';
 
-const theme = createTheme({
-  palette: {
-    primary: { main: '#1976d2' },
-    success: { main: '#2e7d32' },
-    error: { main: '#d32f2f' },
-  },
-  typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", "PingFang SC", "Microsoft YaHei", sans-serif',
-  },
-});
-
 export default function App() {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <ConfigProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -47,6 +33,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>
-    </ThemeProvider>
+    </ConfigProvider>
   );
 }

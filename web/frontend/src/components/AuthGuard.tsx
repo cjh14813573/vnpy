@@ -7,7 +7,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const updateTick = useMarketStore((s) => s.updateTick);
 
-  // 登录后建立 WebSocket 连接
   useWebSocket(isLoggedIn ? { tick: updateTick } : undefined);
 
   if (!isLoggedIn) {

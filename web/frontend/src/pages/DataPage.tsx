@@ -1,117 +1,66 @@
 import { useEffect, useState } from 'react';
-import {
-  Box, Typography, Button, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Paper, Alert, Dialog,
-  DialogTitle, DialogContent, DialogActions, TextField, FormControl,
-  InputLabel, Select, MenuItem,
-} from '@mui/material';
+import { Typography, Button, Table, Card, Toast, Modal, Input, Select } from '@douyinfe/semi-ui';
 import { dataApi } from '../api';
 
 export default function DataPage() {
   const [overview, setOverview] = useState<any[]>([]);
-  const [msg, setMsg] = useState('');
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [dlForm, setDlForm] = useState({ vt_symbol: '', start: '2024-01-01', end: '2024-12-31', interval: '1m' });
 
   const load = async () => {
-    try {
-      const res = await dataApi.overview();
-      setOverview(res.data);
-    } catch { /* 501 时忽略 */ }
+    try { const res = await dataApi.overview(); setOverview(res.data); } catch { /* 501 */ }
   };
 
   useEffect(() => { load(); }, []);
 
   const handleDownload = async () => {
-    try {
-      await dataApi.download(dlForm);
-      setDownloadOpen(false);
-      setMsg('下载已启动');
-      load();
-    } catch (err: any) {
-      setMsg(`下载失败: ${err.response?.data?.detail || err.message}`);
-    }
+    try { await dataApi.download(dlForm); setDownloadOpen(false); Toast.success('下载已启动'); load(); }
+    catch (err: any) { Toast.error(err.response?.data?.detail || '下载失败'); }
   };
 
   const handleDelete = async (vt_symbol: string, interval: string) => {
-    try {
-      await dataApi.delete({ vt_symbol, interval });
-      setMsg('数据已删除');
-      load();
-    } catch (err: any) {
-      setMsg(`删除失败: ${err.response?.data?.detail || err.message}`);
-    }
+    try { await dataApi.delete({ vt_symbol, interval }); Toast.success('数据已删除'); load(); }
+    catch (err: any) { Toast.error(err.response?.data?.detail || '删除失败'); }
   };
 
+  const columns = [
+    { title: '合约', dataIndex: 'symbol' },
+    { title: '交易所', dataIndex: 'exchange' },
+    { title: '周期', dataIndex: 'interval' },
+    { title: '数据量', dataIndex: 'count', align: 'right' as const },
+    { title: '开始日期', dataIndex: 'start', align: 'right' as const },
+    { title: '结束日期', dataIndex: 'end', align: 'right' as const },
+    { title: '操作', width: 80, render: (_: any, r: any) => (
+      <Button size="small" theme="solid" type="danger" onClick={() => handleDelete(`${r.symbol}.${r.exchange}`, r.interval)}>删除</Button>
+    )},
+  ];
+
   return (
-    <Box>
-      <Typography variant="h5" gutterBottom fontWeight={600}>数据管理</Typography>
-      {msg && <Alert severity={msg.includes('失败') ? 'error' : 'success'} sx={{ mb: 2 }} onClose={() => setMsg('')}>{msg}</Alert>}
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <Typography.Title heading={4} style={{ margin: 0 }}>数据管理</Typography.Title>
+        <Button theme="solid" onClick={() => setDownloadOpen(true)}>下载数据</Button>
+      </div>
 
-      <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
-        <Button variant="contained" onClick={() => setDownloadOpen(true)}>下载数据</Button>
-      </Box>
+      <Card style={{ borderRadius: 12 }}>
+        <Table columns={columns} dataSource={overview} pagination={false} size="small"
+          empty="暂无数据概览（后端引擎集成中）" />
+      </Card>
 
-      <Typography variant="h6" gutterBottom>数据概览</Typography>
-      <TableContainer component={Paper}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>合约</TableCell>
-              <TableCell>交易所</TableCell>
-              <TableCell>周期</TableCell>
-              <TableCell align="right">数据量</TableCell>
-              <TableCell align="right">开始日期</TableCell>
-              <TableCell align="right">结束日期</TableCell>
-              <TableCell>操作</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {overview.length === 0 ? (
-              <TableRow><TableCell colSpan={7} align="center">暂无数据概览（后端引擎集成中）</TableCell></TableRow>
-            ) : overview.map((d, i) => (
-              <TableRow key={i}>
-                <TableCell>{d.symbol}</TableCell>
-                <TableCell>{d.exchange}</TableCell>
-                <TableCell>{d.interval}</TableCell>
-                <TableCell align="right">{d.count}</TableCell>
-                <TableCell align="right">{d.start}</TableCell>
-                <TableCell align="right">{d.end}</TableCell>
-                <TableCell>
-                  <Button size="small" color="error" onClick={() => handleDelete(`${d.symbol}.${d.exchange}`, d.interval)}>删除</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* 下载弹窗 */}
-      <Dialog open={downloadOpen} onClose={() => setDownloadOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>下载历史数据</DialogTitle>
-        <DialogContent>
-          <TextField label="合约 (vt_symbol)" fullWidth margin="dense"
-            value={dlForm.vt_symbol} onChange={(e) => setDlForm({ ...dlForm, vt_symbol: e.target.value })} />
-          <TextField label="开始日期" type="date" fullWidth margin="dense"
-            value={dlForm.start} onChange={(e) => setDlForm({ ...dlForm, start: e.target.value })}
-            slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField label="结束日期" type="date" fullWidth margin="dense"
-            value={dlForm.end} onChange={(e) => setDlForm({ ...dlForm, end: e.target.value })}
-            slotProps={{ inputLabel: { shrink: true } }} />
-          <FormControl fullWidth margin="dense">
-            <InputLabel>周期</InputLabel>
-            <Select value={dlForm.interval} label="周期" onChange={(e) => setDlForm({ ...dlForm, interval: e.target.value })}>
-              <MenuItem value="1m">1分钟</MenuItem>
-              <MenuItem value="1h">1小时</MenuItem>
-              <MenuItem value="d">日线</MenuItem>
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDownloadOpen(false)}>取消</Button>
-          <Button variant="contained" onClick={handleDownload}>下载</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+      <Modal title="下载历史数据" visible={downloadOpen} onCancel={() => setDownloadOpen(false)} footer={null}>
+        <div>
+          <label style={{ marginBottom: 8, display: 'block' }}>合约 (vt_symbol)</label>
+          <Input value={dlForm.vt_symbol} onChange={(v) => setDlForm({ ...dlForm, vt_symbol: v })} style={{ marginBottom: 12 }} />
+          <label style={{ marginBottom: 8, display: 'block' }}>开始日期</label>
+          <Input type="date" value={dlForm.start} onChange={(v) => setDlForm({ ...dlForm, start: v })} style={{ marginBottom: 12 }} />
+          <label style={{ marginBottom: 8, display: 'block' }}>结束日期</label>
+          <Input type="date" value={dlForm.end} onChange={(v) => setDlForm({ ...dlForm, end: v })} style={{ marginBottom: 12 }} />
+          <label style={{ marginBottom: 8, display: 'block' }}>周期</label>
+          <Select value={dlForm.interval} onChange={(v) => setDlForm({ ...dlForm, interval: v as string })} style={{ width: '100%', marginBottom: 16 }}
+            optionList={[{ value: '1m', label: '1分钟' }, { value: '1h', label: '1小时' }, { value: 'd', label: '日线' }]} />
+          <Button theme="solid" block onClick={handleDownload} style={{ borderRadius: 10 }}>下载</Button>
+        </div>
+      </Modal>
+    </div>
   );
 }

@@ -1,101 +1,75 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Box, Card, CardContent, TextField, Button, Typography,
-  FormControlLabel, Checkbox, Alert,
-} from '@mui/material';
+import { Card, Input, Button, Checkbox, Typography, Toast } from '@douyinfe/semi-ui';
+import { IconUser, IconLock } from '@douyinfe/semi-icons';
 import { useAuthStore } from '../stores/authStore';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
     try {
       await login(username, password, remember);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.detail || '登录失败');
+      Toast.error(err.response?.data?.detail || '登录失败');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        bgcolor: '#f5f5f5',
-      }}
-    >
-      <Card sx={{ minWidth: 380, maxWidth: 420 }}>
-        <CardContent sx={{ p: 4 }}>
-          <Typography variant="h5" align="center" gutterBottom fontWeight={600}>
-            vnpy Web 交易系统
-          </Typography>
-          <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-            请登录以继续
-          </Typography>
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', background: 'var(--semi-color-fill-0)',
+    }}>
+      <Card style={{ width: 400, borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.08)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <Typography.Title heading={3}>vnpy Web 交易系统</Typography.Title>
+          <Typography.Text type="tertiary">请登录以继续</Typography.Text>
+        </div>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <TextField
-              label="用户名"
-              fullWidth
-              margin="normal"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoFocus
-              required
-            />
-            <TextField
-              label="密码"
-              type="password"
-              fullWidth
-              margin="normal"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                />
-              }
-              label="记住登录（7天）"
-              sx={{ mt: 1 }}
-            />
-            <Button
-              type="submit"
-              variant="contained"
-              fullWidth
-              size="large"
-              disabled={loading}
-              sx={{ mt: 2 }}
-            >
-              {loading ? '登录中...' : '登录'}
-            </Button>
-          </form>
-        </CardContent>
+        <form onSubmit={handleSubmit}>
+          <Input
+            prefix={<IconUser />}
+            placeholder="用户名"
+            size="large"
+            value={username}
+            onChange={setUsername}
+            style={{ marginBottom: 16 }}
+          />
+          <Input
+            prefix={<IconLock />}
+            placeholder="密码"
+            type="password"
+            size="large"
+            value={password}
+            onChange={setPassword}
+            style={{ marginBottom: 8 }}
+          />
+          <Checkbox checked={remember} onChange={(e) => setRemember(e.target.checked!)} style={{ marginBottom: 24 }}>
+            记住登录（7天）
+          </Checkbox>
+          <Button
+            theme="solid"
+            type="primary"
+            size="large"
+            block
+            loading={loading}
+            htmlType="submit"
+            style={{ borderRadius: 10 }}
+          >
+            登录
+          </Button>
+        </form>
       </Card>
-    </Box>
+    </div>
   );
 }

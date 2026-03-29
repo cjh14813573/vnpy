@@ -1,30 +1,20 @@
 import { useEffect, useState } from 'react';
-import {
-  Box, Typography, Card, CardContent, Button, TextField,
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Alert, Grid, Chip,
-} from '@mui/material';
+import { Typography, Card, Button, Input, Tag, Row, Col, Toast, Modal, Space } from '@douyinfe/semi-ui';
 import { systemApi } from '../api';
 
 export default function SettingsPage() {
   const [gateways, setGateways] = useState<string[]>([]);
   const [apps, setApps] = useState<any[]>([]);
   const [exchanges, setExchanges] = useState<string[]>([]);
-  const [msg, setMsg] = useState('');
 
-  // 网关连接弹窗
   const [connectOpen, setConnectOpen] = useState(false);
   const [selectedGateway, setSelectedGateway] = useState('');
   const [gatewaySetting, setGatewaySetting] = useState<Record<string, string>>({});
 
   const load = async () => {
     try {
-      const [gw, app, ex] = await Promise.all([
-        systemApi.gateways(), systemApi.apps(), systemApi.exchanges(),
-      ]);
-      setGateways(gw.data);
-      setApps(app.data);
-      setExchanges(ex.data);
+      const [gw, app, ex] = await Promise.all([systemApi.gateways(), systemApi.apps(), systemApi.exchanges()]);
+      setGateways(gw.data); setApps(app.data); setExchanges(ex.data);
     } catch { /* ignore */ }
   };
 
@@ -34,85 +24,59 @@ export default function SettingsPage() {
     setSelectedGateway(name);
     try {
       const res = await systemApi.gatewaySetting(name);
-      const settings: Record<string, string> = {};
-      Object.entries(res.data).forEach(([k, v]) => { settings[k] = String(v ?? ''); });
-      setGatewaySetting(settings);
-    } catch {
-      setGatewaySetting({});
-    }
+      const s: Record<string, string> = {};
+      Object.entries(res.data).forEach(([k, v]) => { s[k] = String(v ?? ''); });
+      setGatewaySetting(s);
+    } catch { setGatewaySetting({}); }
     setConnectOpen(true);
   };
 
   const handleConnect = async () => {
-    try {
-      await systemApi.connect({ gateway_name: selectedGateway, setting: gatewaySetting });
-      setConnectOpen(false);
-      setMsg(`${selectedGateway} 正在连接...`);
-    } catch (err: any) {
-      setMsg(`连接失败: ${err.response?.data?.detail || err.message}`);
-    }
+    try { await systemApi.connect({ gateway_name: selectedGateway, setting: gatewaySetting }); setConnectOpen(false); Toast.success(`${selectedGateway} 正在连接...`); }
+    catch (err: any) { Toast.error(err.response?.data?.detail || '连接失败'); }
   };
 
   return (
-    <Box>
-      <Typography variant="h5" gutterBottom fontWeight={600}>系统设置</Typography>
-      {msg && <Alert severity={msg.includes('失败') ? 'error' : 'success'} sx={{ mb: 2 }} onClose={() => setMsg('')}>{msg}</Alert>}
+    <div>
+      <Typography.Title heading={4}>系统设置</Typography.Title>
 
-      {/* 网关管理 */}
-      <Typography variant="h6" gutterBottom>网关管理</Typography>
-      <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Typography.Title heading={5}>网关管理</Typography.Title>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {gateways.map((gw) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={gw}>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle1" fontWeight={600}>{gw}</Typography>
-                <Button variant="contained" size="small" sx={{ mt: 1 }} onClick={() => openConnect(gw)}>
-                  连接
-                </Button>
-              </CardContent>
+          <Col span={6} key={gw}>
+            <Card bodyStyle={{ padding: 20 }} style={{ borderRadius: 12 }}>
+              <Typography.Text strong style={{ fontSize: 16 }}>{gw}</Typography.Text>
+              <br /><Button theme="solid" size="small" style={{ marginTop: 12, borderRadius: 8 }} onClick={() => openConnect(gw)}>连接</Button>
             </Card>
-          </Grid>
+          </Col>
         ))}
-        {gateways.length === 0 && (
-          <Grid size={12}>
-            <Typography color="text.secondary">暂无可用网关</Typography>
-          </Grid>
-        )}
-      </Grid>
+        {gateways.length === 0 && <Col><Typography.Text type="tertiary">暂无可用网关</Typography.Text></Col>}
+      </Row>
 
-      {/* 已加载应用 */}
-      <Typography variant="h6" gutterBottom>应用模块</Typography>
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
-        {apps.map((app) => (
-          <Chip key={app.app_name} label={app.display_name || app.app_name} variant="outlined" />
-        ))}
-      </Box>
+      <Typography.Title heading={5}>应用模块</Typography.Title>
+      <Space wrap style={{ marginBottom: 24 }}>
+        {apps.map((app) => <Tag key={app.app_name} size="large">{app.display_name || app.app_name}</Tag>)}
+      </Space>
 
-      {/* 支持交易所 */}
-      <Typography variant="h6" gutterBottom>支持交易所</Typography>
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        {exchanges.map((ex) => (
-          <Chip key={ex} label={ex} size="small" />
-        ))}
-      </Box>
+      <Typography.Title heading={5}>支持交易所</Typography.Title>
+      <Space wrap>
+        {exchanges.map((ex) => <Tag key={ex}>{ex}</Tag>)}
+      </Space>
 
-      {/* 连接弹窗 */}
-      <Dialog open={connectOpen} onClose={() => setConnectOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>连接网关: {selectedGateway}</DialogTitle>
-        <DialogContent>
+      <Modal title={`连接网关: ${selectedGateway}`} visible={connectOpen} onCancel={() => setConnectOpen(false)} footer={null}>
+        <div>
           {Object.entries(gatewaySetting).length === 0 ? (
-            <Typography color="text.secondary">该网关无需配置</Typography>
+            <Typography.Text type="tertiary">该网关无需配置</Typography.Text>
           ) : Object.entries(gatewaySetting).map(([key, val]) => (
-            <TextField key={key} label={key} fullWidth size="small" margin="dense"
-              value={val} onChange={(e) => setGatewaySetting({ ...gatewaySetting, [key]: e.target.value })}
-              type={key.includes('密码') || key.toLowerCase().includes('password') ? 'password' : 'text'} />
+            <div key={key}>
+              <label style={{ marginBottom: 4, display: 'block' }}>{key}</label>
+              <Input value={val} onChange={(v) => setGatewaySetting({ ...gatewaySetting, [key]: v })} style={{ marginBottom: 12 }}
+                type={key.includes('密码') || key.toLowerCase().includes('password') ? 'password' : 'text'} />
+            </div>
           ))}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConnectOpen(false)}>取消</Button>
-          <Button variant="contained" onClick={handleConnect}>连接</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+          <Button theme="solid" block onClick={handleConnect} style={{ borderRadius: 10 }}>连接</Button>
+        </div>
+      </Modal>
+    </div>
   );
 }

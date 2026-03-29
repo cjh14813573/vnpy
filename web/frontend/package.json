@@ -10,10 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^7.3.9",
-    "@mui/material": "^7.3.9",
+    "@douyinfe/semi-icons": "^2.93.0",
+    "@douyinfe/semi-ui": "^2.93.0",
     "axios": "^1.14.0",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.6",
