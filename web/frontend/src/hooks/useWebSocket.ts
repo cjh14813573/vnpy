@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { API_BASE } from '../api/client';
 
 export function useWebSocket(handlers?: Record<string, (data: any) => void>) {
   const wsRef = useRef<WebSocket | null>(null);
@@ -12,7 +11,7 @@ export function useWebSocket(handlers?: Record<string, (data: any) => void>) {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const wsUrl = API_BASE.replace(/^http/, 'ws') + `/ws?token=${token}`;
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws?token=${token}`;
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
