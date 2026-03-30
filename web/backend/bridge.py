@@ -75,6 +75,13 @@ class VnpyBridge:
                 self._event_engine = EventEngine()
                 self._main_engine = MainEngine(self._event_engine)
 
+                # 添加 CTA 策略应用
+                try:
+                    from vnpy_ctastrategy import CtaStrategyApp
+                    self._main_engine.add_app(CtaStrategyApp)
+                except Exception as e:
+                    print(f"[Bridge] Failed to add CtaStrategyApp: {e}")
+
                 # 注册事件回调
                 self._register_event(EVENT_TICK, self._on_tick)
                 self._register_event(EVENT_ORDER, self._on_order)
@@ -440,27 +447,39 @@ class VnpyBridge:
 
     def _get_cta_engine(self):
         """获取 CTA 引擎"""
-        from vnpy_ctastrategy import CtaEngine
-        return self.main_engine.get_engine(CtaEngine.engine_name)
+        self.ensure_init()
+        if self._main_engine is None:
+            return None
+        return self._main_engine.get_engine("CtaStrategy")
 
     def get_all_strategy_class_names(self) -> list[str]:
         cta = self._get_cta_engine()
+        if cta is None:
+            return []
         return cta.get_all_strategy_class_names()
 
     def get_strategy_class_parameters(self, class_name: str) -> dict:
         cta = self._get_cta_engine()
+        if cta is None:
+            return {}
         return cta.get_strategy_class_parameters(class_name)
 
     def get_strategy_class_file(self, class_name: str) -> str:
         cta = self._get_cta_engine()
+        if cta is None:
+            return ""
         return cta.get_strategy_class_file(class_name)
 
     def get_strategy_names(self) -> list[str]:
         cta = self._get_cta_engine()
+        if cta is None:
+            return []
         return [s.strategy_name for s in cta.strategies.values()]
 
     def get_strategy_infolist(self) -> list[dict]:
         cta = self._get_cta_engine()
+        if cta is None:
+            return []
         result = []
         for s in cta.strategies.values():
             info = {
@@ -484,53 +503,71 @@ class VnpyBridge:
 
     def get_strategy_variables(self, strategy_name: str) -> dict:
         cta = self._get_cta_engine()
-        if strategy_name in cta.strategies:
-            s = cta.strategies[strategy_name]
-            return {name: getattr(s, name, None) for name in getattr(s, "variables", [])}
-        return {}
+        if cta is None or strategy_name not in cta.strategies:
+            return {}
+        s = cta.strategies[strategy_name]
+        return {name: getattr(s, name, None) for name in getattr(s, "variables", [])}
 
     def add_strategy(self, class_name: str, strategy_name: str, vt_symbol: str, setting: dict) -> bool:
         cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
         cta.add_strategy(class_name, strategy_name, vt_symbol, setting)
         return True
 
     def edit_strategy(self, strategy_name: str, setting: dict) -> bool:
         cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
         cta.edit_strategy(strategy_name, setting)
         return True
 
     def remove_strategy(self, strategy_name: str) -> bool:
         cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
         cta.remove_strategy(strategy_name)
         return True
 
     def init_strategy(self, strategy_name: str) -> bool:
         cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
         cta.init_strategy(strategy_name)
         return True
 
     def init_all_strategies(self) -> bool:
         cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
         cta.init_all_strategies()
         return True
 
     def start_strategy(self, strategy_name: str) -> bool:
         cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
         cta.start_strategy(strategy_name)
         return True
 
     def start_all_strategies(self) -> bool:
         cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
         cta.start_all_strategies()
         return True
 
     def stop_strategy(self, strategy_name: str) -> bool:
         cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
         cta.stop_strategy(strategy_name)
         return True
 
     def stop_all_strategies(self) -> bool:
         cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
         cta.stop_all_strategies()
         return True
 

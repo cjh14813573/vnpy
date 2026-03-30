@@ -1,6 +1,10 @@
 """应用配置"""
 
+import os
 from pydantic_settings import BaseSettings
+
+# 获取后端目录的绝对路径
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 class Settings(BaseSettings):
@@ -15,8 +19,8 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24小时
     JWT_REMEMBER_ME_EXPIRE_DAYS: int = 7
 
-    # 数据库
-    DB_PATH: str = "users.db"
+    # 数据库（使用绝对路径）
+    DB_PATH: str = os.path.join(BACKEND_DIR, "users.db")
 
     # vnpy
     VNPY_GATEWAY_CONFIG_DIR: str = "./gateway_settings"
