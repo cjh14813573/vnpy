@@ -1,12 +1,17 @@
-import { useEffect, useState } from 'react';
-import { Typography, Card, Input, Select, Button, Table, Tag, Row, Col, Toast } from '@douyinfe/semi-ui';
-import { tradingApi } from '../api';
+import { useEffect, useState, useMemo } from 'react';
+import { Typography, Card, Input, Select, Button, Table, Tag, Row, Col, Toast, Space, Spin } from '@douyinfe/semi-ui';
+import { IconPriceTag, IconPlus, IconMinus } from '@douyinfe/semi-icons';
+import { tradingApi, marketApi } from '../api';
 import { useRealtimeStore } from '../stores/realtimeStore';
 import { useWebSocket, wsService } from '../services/websocket';
+import type { Contract } from '../api/types';
 
 export default function TradingPage() {
-  const { orders, trades, positions, connectionState } = useRealtimeStore();
+  const { orders, trades, positions, ticks, contracts: realtimeContracts, connectionState } = useRealtimeStore();
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
 
   const [form, setForm] = useState({
     symbol: '', exchange: 'SHFE', direction: '多', type: '限价',
@@ -15,6 +20,79 @@ export default function TradingPage() {
 
   // 初始化 WebSocket
   useWebSocket();
+
+  // 加载合约列表
+  useEffect(() => {
+    const loadContracts = async () => {
+      setContractsLoading(true);
+      try {
+        const res = await marketApi.contracts();
+        const list = res.data.data || res.data || [];
+        setContracts(list);
+      } catch {
+        // ignore
+      } finally {
+        setContractsLoading(false);
+      }
+    };
+    loadContracts();
+  }, []);
+
+  // 选择合约时自动填充信息
+  const handleSelectContract = (vtSymbol: string) => {
+    const contract = contracts.find(c => c.vt_symbol === vtSymbol);
+    if (contract) {
+      setSelectedContract(contract);
+      setForm(prev => ({
+        ...prev,
+        symbol: contract.symbol,
+        exchange: contract.exchange,
+        gateway_name: contract.gateway_name,
+      }));
+      // 订阅该合约行情
+      wsService.subscribe([vtSymbol]);
+    }
+  };
+
+  // 获取当前合约的最新价格
+  const currentTick = selectedContract ? ticks[selectedContract.vt_symbol] : null;
+  const lastPrice = currentTick?.last_price;
+
+  // 根据持仓计算可开/平仓数量
+  const currentPosition = useMemo(() => {
+    if (!selectedContract) return null;
+    return positions[selectedContract.vt_symbol];
+  }, [positions, selectedContract]);
+
+  // 快捷设置价格
+  const setQuickPrice = (type: 'last' | 'up' | 'down') => {
+    if (!currentTick) {
+      Toast.warning('暂无行情数据');
+      return;
+    }
+    let price: number;
+    switch (type) {
+      case 'last':
+        price = currentTick.last_price;
+        break;
+      case 'up':
+        price = currentTick.last_price + (selectedContract?.pricetick || 1);
+        break;
+      case 'down':
+        price = currentTick.last_price - (selectedContract?.pricetick || 1);
+        break;
+      default:
+        price = currentTick.last_price;
+    }
+    setForm(prev => ({ ...prev, price: price.toFixed(2) }));
+  };
+
+  // 快捷设置数量
+  const adjustVolume = (delta: number) => {
+    const current = parseInt(form.volume) || 0;
+    const newVolume = Math.max(1, current + delta);
+    setForm(prev => ({ ...prev, volume: String(newVolume) }));
+  };
 
   // 初始加载账户数据
   useEffect(() => {
@@ -136,15 +214,57 @@ export default function TradingPage() {
       <Row gutter={16}>
         <Col span={8}>
           <Card title="下单" style={{ borderRadius: 12 }}>
+            {/* 合约选择 */}
             <div>
-              <label style={labelStyle}>合约代码</label>
-              <Input placeholder="rb2410" value={form.symbol} onChange={(v) => updateForm('symbol', v)} style={{ marginBottom: 12 }} />
+              <label style={labelStyle}>
+                选择合约
+                {contractsLoading && <Spin size="small" style={{ marginLeft: 8 }} />}
+              </label>
+              <Select
+                placeholder="请选择合约"
+                value={selectedContract?.vt_symbol || ''}
+                onChange={handleSelectContract}
+                style={{ width: '100%', marginBottom: 12 }}
+                optionList={contracts.map(c => ({
+                  value: c.vt_symbol,
+                  label: `${c.vt_symbol} - ${c.name}`,
+                }))}
+                filter
+                searchPlaceholder="搜索合约代码或名称"
+              />
             </div>
-            <div>
-              <label style={labelStyle}>交易所</label>
-              <Select value={form.exchange} onChange={(v) => updateForm('exchange', v)} style={{ width: '100%', marginBottom: 12 }}
-                optionList={['SHFE','CFFEX','DCE','CZCE','INE','SSE','SZSE'].map((e) => ({ value: e, label: e }))} />
-            </div>
+
+            {/* 当前价格和持仓信息 */}
+            {selectedContract && (
+              <Card bodyStyle={{ padding: 12, marginBottom: 12 }} style={{ background: 'var(--semi-color-fill-0)' }}>
+                <Row>
+                  <Col span={12}>
+                    <Typography.Text type="tertiary" size="small">最新价</Typography.Text>
+                    <br />
+                    <Typography.Text strong style={{ fontSize: 20, color: currentTick?.last_price ? (currentTick.last_price >= (currentTick.pre_close || 0) ? 'var(--semi-color-success)' : 'var(--semi-color-danger)') : undefined }}>
+                      {currentTick?.last_price?.toFixed(2) || '-'}
+                    </Typography.Text>
+                  </Col>
+                  <Col span={12}>
+                    <Typography.Text type="tertiary" size="small">当前持仓</Typography.Text>
+                    <br />
+                    <Typography.Text strong style={{ fontSize: 20 }}>
+                      {currentPosition ? `${currentPosition.direction === '多' ? '+' : '-'}${currentPosition.volume}` : '0'}
+                    </Typography.Text>
+                  </Col>
+                </Row>
+              </Card>
+            )}
+
+            {/* 价格和数量快捷按钮 */}
+            {currentTick && (
+              <Space style={{ marginBottom: 12 }}>
+                <Button size="small" onClick={() => setQuickPrice('up')} icon={<IconPriceTag />}>+{selectedContract?.pricetick || 1}</Button>
+                <Button size="small" onClick={() => setQuickPrice('last')} type="secondary">最新价</Button>
+                <Button size="small" onClick={() => setQuickPrice('down')} icon={<IconPriceTag />}>-{selectedContract?.pricetick || 1}</Button>
+              </Space>
+            )}
+
             <Row gutter={8}>
               <Col span={12}>
                 <div><label style={labelStyle}>方向</label>
@@ -163,19 +283,36 @@ export default function TradingPage() {
                 optionList={[{ value: '限价', label: '限价' }, { value: '市价', label: '市价' }, { value: 'FAK', label: 'FAK' }, { value: 'FOK', label: 'FOK' }]} />
             </div>
             <Row gutter={8}>
-              <Col span={12}><div><label style={labelStyle}>价格</label>
-                <Input type="number" value={form.price} onChange={(v) => updateForm('price', v)} /></div></Col>
-              <Col span={12}><div><label style={labelStyle}>数量</label>
-                <Input type="number" value={form.volume} onChange={(v) => updateForm('volume', v)} /></div></Col>
+              <Col span={12}>
+                <div><label style={labelStyle}>价格</label>
+                <Input type="number" value={form.price} onChange={(v) => updateForm('price', v)} placeholder={lastPrice?.toString()} /></div>
+              </Col>
+              <Col span={12}>
+                <div><label style={labelStyle}>数量</label>
+                  <Input
+                    type="number"
+                    value={form.volume}
+                    onChange={(v) => updateForm('volume', v)}
+                    suffix={
+                      <Space>
+                        <Button size="small" type="tertiary" icon={<IconMinus />} onClick={() => adjustVolume(-1)} />
+                        <Button size="small" type="tertiary" icon={<IconPlus />} onClick={() => adjustVolume(1)} />
+                      </Space>
+                    }
+                  />
+                </div>
+              </Col>
             </Row>
-            <div>
-              <label style={labelStyle}>网关</label>
-              <Select value={form.gateway_name} onChange={(v) => updateForm('gateway_name', v)} style={{ width: '100%', marginBottom: 16 }}
-                optionList={[{ value: 'CTP', label: 'CTP' }, { value: 'SIM', label: 'SIM' }]} />
-            </div>
-            <Button theme="solid" type={form.direction === '多' ? 'primary' : 'danger'} block size="large"
-              onClick={handleSendOrder} style={{ borderRadius: 10 }}>
-              {form.direction === '多' ? '买入' : '卖出'} {form.symbol}
+            <Button
+              theme="solid"
+              type={form.direction === '多' ? 'primary' : 'danger'}
+              block
+              size="large"
+              onClick={handleSendOrder}
+              disabled={!selectedContract}
+              style={{ borderRadius: 10, marginTop: 16 }}
+            >
+              {selectedContract ? (form.direction === '多' ? '买入 ' : '卖出 ') + selectedContract.symbol : '请先选择合约'}
             </Button>
           </Card>
         </Col>

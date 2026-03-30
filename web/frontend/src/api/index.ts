@@ -100,6 +100,16 @@ export const dataApi = {
   exportCsv: (data: Record<string, any>) => client.post('/api/data/export-csv', data),
 };
 
+// ============ 风控设置 ============
+export const riskApi = {
+  rules: () => client.get('/api/risk/rules'),
+  rule: (name: string) => client.get(`/api/risk/rules/${name}`),
+  updateRule: (name: string, data: Record<string, any>) => client.put(`/api/risk/rules/${name}`, data),
+  events: (limit?: number) => client.get('/api/risk/events', { params: { limit } }),
+  status: () => client.get('/api/risk/status'),
+  reset: () => client.post('/api/risk/reset'),
+};
+
 // ============ 操作日志 ============
 export const logsApi = {
   query: (params?: Record<string, any>) => client.get('/api/logs/operations', { params }),
