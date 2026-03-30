@@ -42,22 +42,39 @@ class TestDataManagement:
 
 
 class TestRiskManagement:
-    """风控管理测试（当前返回 501）"""
+    """风控管理测试"""
 
-    def test_rules_not_implemented(self, client, auth_headers):
+    def test_rules_list(self, client, auth_headers):
         resp = client.get("/api/risk/rules", headers=auth_headers)
-        assert resp.status_code == 501
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
 
-    def test_rule_detail_not_implemented(self, client, auth_headers):
-        resp = client.get("/api/risk/rules/test_rule", headers=auth_headers)
-        assert resp.status_code == 501
+    def test_rule_detail(self, client, auth_headers):
+        # 先获取列表，然后测试第一个规则
+        resp = client.get("/api/risk/rules", headers=auth_headers)
+        rules = resp.json()
+        if rules:
+            rule_name = rules[0]["name"]
+            resp = client.get(f"/api/risk/rules/{rule_name}", headers=auth_headers)
+            assert resp.status_code == 200
+            assert resp.json()["name"] == rule_name
 
-    def test_update_rule_not_implemented(self, client, auth_headers):
-        resp = client.put("/api/risk/rules/test_rule", json={
-            "active": True,
-            "setting": {},
-        }, headers=auth_headers)
-        assert resp.status_code == 501
+    def test_update_rule(self, client, auth_headers):
+        # 先获取列表
+        resp = client.get("/api/risk/rules", headers=auth_headers)
+        rules = resp.json()
+        if rules:
+            rule_name = rules[0]["name"]
+            resp = client.put(f"/api/risk/rules/{rule_name}", json={
+                "enabled": False,
+                "limit": 100,
+            }, headers=auth_headers)
+            assert resp.status_code == 200
+            assert resp.json()["enabled"] == False
+
+    def test_rule_not_found(self, client, auth_headers):
+        resp = client.get("/api/risk/rules/non_existent_rule", headers=auth_headers)
+        assert resp.status_code == 404
 
     def test_unauthenticated(self, client):
         resp = client.get("/api/risk/rules")
