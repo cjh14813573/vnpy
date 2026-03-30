@@ -1,15 +1,25 @@
 """CTA 策略管理路由（带锁机制）"""
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from typing import Optional
+import json
 from pydantic import BaseModel
 from auth import get_current_user
 from bridge import bridge
 from schemas import StrategyAddRequest, StrategyEditRequest, PaginationParams, FilterParams, PaginatedListResponse
 from services.strategy_lock import lock_service
+from services.operation_log import operation_log, OperationType
 from utils import filter_and_paginate
 
 router = APIRouter(prefix="/api/strategy", tags=["strategy"], dependencies=[Depends(get_current_user)])
+
+
+def get_client_info(request: Request) -> tuple[str, str]:
+    """获取客户端IP和UA"""
+    forwarded = request.headers.get("X-Forwarded-For")
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    ua = request.headers.get("User-Agent", "")
+    return ip, ua
 
 
 # ============ 辅助函数 ============
@@ -242,12 +252,51 @@ async def get_instance(name: str):
 
 
 @router.post("/instances")
-async def add_strategy(req: StrategyAddRequest):
+async def add_strategy(
+    req: StrategyAddRequest,
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
     """添加策略实例（不需要锁，因为是新建）"""
+    ip, ua = get_client_info(request)
+    username = current_user["username"]
+
     try:
         bridge.add_strategy(req.class_name, req.strategy_name, req.vt_symbol, req.setting)
+
+        # 记录操作日志
+        operation_log.log(
+            username=username,
+            operation=OperationType.STRATEGY_ADD,
+            target_type="strategy",
+            target_id=req.strategy_name,
+            details=json.dumps({
+                "class_name": req.class_name,
+                "vt_symbol": req.vt_symbol,
+                "setting": req.setting,
+            }),
+            ip_address=ip,
+            user_agent=ua,
+            success=True,
+        )
+
         return {"message": f"策略 {req.strategy_name} 已添加"}
     except Exception as e:
+        # 记录失败日志
+        operation_log.log(
+            username=username,
+            operation=OperationType.STRATEGY_ADD,
+            target_type="strategy",
+            target_id=req.strategy_name,
+            details=json.dumps({
+                "class_name": req.class_name,
+                "error": str(e),
+            }),
+            ip_address=ip,
+            user_agent=ua,
+            success=False,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -255,30 +304,59 @@ async def add_strategy(req: StrategyAddRequest):
 async def edit_strategy(
     name: str,
     req: StrategyEditRequest,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     """修改策略参数（需要锁）"""
     user_id = current_user["username"]
     is_admin = current_user.get("role") == "admin"
+    ip, ua = get_client_info(request)
 
     # 检查锁
     check_strategy_lock(name, user_id, is_admin)
 
     try:
         bridge.edit_strategy(name, req.setting)
+
+        # 记录操作日志
+        operation_log.log(
+            username=user_id,
+            operation=OperationType.STRATEGY_EDIT,
+            target_type="strategy",
+            target_id=name,
+            details=json.dumps({"setting": req.setting}),
+            ip_address=ip,
+            user_agent=ua,
+            success=True,
+        )
+
         return {"message": f"策略 {name} 参数已更新"}
     except Exception as e:
+        # 记录失败日志
+        operation_log.log(
+            username=user_id,
+            operation=OperationType.STRATEGY_EDIT,
+            target_type="strategy",
+            target_id=name,
+            details=json.dumps({"setting": req.setting, "error": str(e)}),
+            ip_address=ip,
+            user_agent=ua,
+            success=False,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/instances/{name}")
 async def remove_strategy(
     name: str,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     """删除策略（需要锁）"""
     user_id = current_user["username"]
     is_admin = current_user.get("role") == "admin"
+    ip, ua = get_client_info(request)
 
     # 检查锁
     check_strategy_lock(name, user_id, is_admin)
@@ -287,65 +365,163 @@ async def remove_strategy(
         bridge.remove_strategy(name)
         # 清理锁
         lock_service.release(name, user_id, is_admin)
+
+        # 记录操作日志
+        operation_log.log(
+            username=user_id,
+            operation=OperationType.STRATEGY_REMOVE,
+            target_type="strategy",
+            target_id=name,
+            ip_address=ip,
+            user_agent=ua,
+            success=True,
+        )
+
         return {"message": f"策略 {name} 已删除"}
     except Exception as e:
+        # 记录失败日志
+        operation_log.log(
+            username=user_id,
+            operation=OperationType.STRATEGY_REMOVE,
+            target_type="strategy",
+            target_id=name,
+            ip_address=ip,
+            user_agent=ua,
+            success=False,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/instances/{name}/init")
 async def init_strategy(
     name: str,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     """初始化策略（需要锁）"""
     user_id = current_user["username"]
     is_admin = current_user.get("role") == "admin"
+    ip, ua = get_client_info(request)
 
     # 检查锁
     check_strategy_lock(name, user_id, is_admin)
 
     try:
         bridge.init_strategy(name)
+
+        # 记录操作日志
+        operation_log.log(
+            username=user_id,
+            operation=OperationType.STRATEGY_INIT,
+            target_type="strategy",
+            target_id=name,
+            ip_address=ip,
+            user_agent=ua,
+            success=True,
+        )
+
         return {"message": f"策略 {name} 已初始化"}
     except Exception as e:
+        # 记录失败日志
+        operation_log.log(
+            username=user_id,
+            operation=OperationType.STRATEGY_INIT,
+            target_type="strategy",
+            target_id=name,
+            ip_address=ip,
+            user_agent=ua,
+            success=False,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/instances/{name}/start")
 async def start_strategy(
     name: str,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     """启动策略（需要锁）"""
     user_id = current_user["username"]
     is_admin = current_user.get("role") == "admin"
+    ip, ua = get_client_info(request)
 
     # 检查锁
     check_strategy_lock(name, user_id, is_admin)
 
     try:
         bridge.start_strategy(name)
+
+        # 记录操作日志
+        operation_log.log(
+            username=user_id,
+            operation=OperationType.STRATEGY_START,
+            target_type="strategy",
+            target_id=name,
+            ip_address=ip,
+            user_agent=ua,
+            success=True,
+        )
+
         return {"message": f"策略 {name} 已启动"}
     except Exception as e:
+        # 记录失败日志
+        operation_log.log(
+            username=user_id,
+            operation=OperationType.STRATEGY_START,
+            target_type="strategy",
+            target_id=name,
+            ip_address=ip,
+            user_agent=ua,
+            success=False,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/instances/{name}/stop")
 async def stop_strategy(
     name: str,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     """停止策略（需要锁）"""
     user_id = current_user["username"]
     is_admin = current_user.get("role") == "admin"
+    ip, ua = get_client_info(request)
 
     # 检查锁
     check_strategy_lock(name, user_id, is_admin)
 
     try:
         bridge.stop_strategy(name)
+
+        # 记录操作日志
+        operation_log.log(
+            username=user_id,
+            operation=OperationType.STRATEGY_STOP,
+            target_type="strategy",
+            target_id=name,
+            ip_address=ip,
+            user_agent=ua,
+            success=True,
+        )
+
         return {"message": f"策略 {name} 已停止"}
     except Exception as e:
+        # 记录失败日志
+        operation_log.log(
+            username=user_id,
+            operation=OperationType.STRATEGY_STOP,
+            target_type="strategy",
+            target_id=name,
+            ip_address=ip,
+            user_agent=ua,
+            success=False,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 

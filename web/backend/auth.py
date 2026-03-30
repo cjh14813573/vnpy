@@ -4,13 +4,14 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from config import settings
+from services.operation_log import operation_log, OperationType
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -188,20 +189,58 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
 
 # ============ API 路由 ============
 
+def get_client_ip(request: Request) -> str:
+    """获取客户端IP"""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 @router.post("/login", response_model=TokenResponse)
-async def login(req: LoginRequest):
+async def login(req: LoginRequest, request: Request):
     """用户登录"""
     user = get_user(req.username)
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")
+
     if not user or not verify_password(req.password, user["password_hash"]):
+        # 记录登录失败
+        operation_log.log(
+            username=req.username,
+            operation=OperationType.LOGIN,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            success=False,
+            error_message="用户名或密码错误",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误",
         )
 
     if not user.get("is_active"):
+        # 记录登录失败（账户禁用）
+        operation_log.log(
+            username=req.username,
+            operation=OperationType.LOGIN,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            success=False,
+            error_message="账户已禁用",
+        )
         raise HTTPException(status_code=403, detail="账户已禁用")
 
     update_last_login(req.username)
+
+    # 记录登录成功
+    operation_log.log(
+        username=req.username,
+        operation=OperationType.LOGIN,
+        ip_address=client_ip,
+        user_agent=user_agent,
+        success=True,
+    )
 
     token = create_access_token(
         {"sub": req.username, "role": user["role"]},

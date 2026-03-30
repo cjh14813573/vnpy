@@ -24,6 +24,7 @@ from routers.backtest import router as backtest_router
 from routers.data import router as data_router
 from routers.risk import router as risk_router
 from routers.paper import router as paper_router
+from routers.logs import router as logs_router
 
 
 @asynccontextmanager
@@ -112,6 +113,7 @@ app.include_router(backtest_router)
 app.include_router(data_router)
 app.include_router(risk_router)
 app.include_router(paper_router)
+app.include_router(logs_router)
 
 
 @app.get("/")
