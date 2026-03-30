@@ -1,12 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Typography, Card, Input, Select, Button, Row, Col, Toast,
-  Table, Progress, Tag, Space, Tabs, Empty, Spin
+  Table, Progress, Tag, Space, Tabs, Empty, Spin, Divider
 } from '@douyinfe/semi-ui';
 import {
   IconPlay, IconDelete, IconRefresh, IconPieChartStroked,
   IconList, IconSetting
 } from '@douyinfe/semi-icons';
+import ReactECharts from 'echarts-for-react';
+import * as echarts from 'echarts';
 import { backtestApi } from '../api';
 import { useRealtimeStore } from '../stores/realtimeStore';
 import { useWebSocket } from '../services/websocket';
@@ -388,19 +390,7 @@ export default function BacktestPage() {
               </Card>
 
               {taskResult ? (
-                <Row gutter={[16, 16]}>
-                  {Object.entries(taskResult).map(([k, v]) => (
-                    <Col span={6} key={k}>
-                      <Card bodyStyle={{ padding: 16 }} style={{ borderRadius: 12 }}>
-                        <Typography.Text type="tertiary" size="small">{k}</Typography.Text>
-                        <br />
-                        <Typography.Text strong style={{ fontSize: 24 }}>
-                          {typeof v === 'number' ? v.toFixed(4) : String(v)}
-                        </Typography.Text>
-                      </Card>
-                    </Col>
-                  ))}
-                </Row>
+                <BacktestResultCharts result={taskResult} />
               ) : selectedTask.status === 'running' ? (
                 <Card style={{ borderRadius: 12, textAlign: 'center', padding: 60 }}>
                   <Spin size="large" />
@@ -419,6 +409,219 @@ export default function BacktestPage() {
           )}
         </TabPane>
       </Tabs>
+    </div>
+  );
+}
+
+// 回测结果图表组件
+interface BacktestResult {
+  total_return?: number;
+  annual_return?: number;
+  max_drawdown?: number;
+  sharpe_ratio?: number;
+  total_trades?: number;
+  winning_trades?: number;
+  losing_trades?: number;
+  win_rate?: number;
+  daily_pnl?: { date: string; pnl: number; cumulative: number }[];
+  drawdown?: { date: string; drawdown: number }[];
+  trades?: { entry_date: string; exit_date: string; pnl: number }[];
+}
+
+function BacktestResultCharts({ result }: { result: BacktestResult }) {
+  // 指标卡片数据
+  const metrics = [
+    { label: '总收益率', value: result.total_return, unit: '%', color: (v: number) => v >= 0 ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' },
+    { label: '年化收益率', value: result.annual_return, unit: '%', color: (v: number) => v >= 0 ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' },
+    { label: '最大回撤', value: result.max_drawdown, unit: '%', color: () => 'var(--semi-color-danger)' },
+    { label: '夏普比率', value: result.sharpe_ratio, unit: '', color: (v: number) => v >= 1 ? 'var(--semi-color-success)' : v >= 0 ? 'var(--semi-color-warning)' : 'var(--semi-color-tertiary)' },
+    { label: '总交易次数', value: result.total_trades, unit: '次', color: () => 'var(--semi-color-text-0)' },
+    { label: '胜率', value: result.win_rate, unit: '%', color: (v: number) => v >= 50 ? 'var(--semi-color-success)' : 'var(--semi-color-warning)' },
+    { label: '盈利次数', value: result.winning_trades, unit: '次', color: () => 'var(--semi-color-success)' },
+    { label: '亏损次数', value: result.losing_trades, unit: '次', color: () => 'var(--semi-color-danger)' },
+  ];
+
+  // 权益曲线图配置
+  const equityChartOption = useMemo(() => {
+    const dailyData = result.daily_pnl || [];
+    const dates = dailyData.map(d => d.date);
+    const cumulative = dailyData.map(d => d.cumulative);
+
+    return {
+      title: { text: '权益曲线', left: 'center', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLabel: { rotate: 30, fontSize: 10 },
+      },
+      yAxis: {
+        type: 'value',
+        name: '累计收益',
+        axisLabel: { formatter: (v: number) => v.toFixed(0) },
+      },
+      series: [{
+        name: '累计收益',
+        type: 'line',
+        data: cumulative,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { width: 2, color: '#10b981' },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+            { offset: 1, color: 'rgba(16, 185, 129, 0.05)' },
+          ]),
+        },
+      }],
+    };
+  }, [result.daily_pnl]);
+
+  // 回撤图配置
+  const drawdownChartOption = useMemo(() => {
+    const drawdownData = result.drawdown || result.daily_pnl?.map((d, i, arr) => {
+      // 如果没有回撤数据，从前高计算
+      const maxSoFar = Math.max(...arr.slice(0, i + 1).map(x => x.cumulative), 0);
+      return { date: d.date, drawdown: d.cumulative - maxSoFar };
+    }) || [];
+
+    const dates = drawdownData.map(d => d.date);
+    const values = drawdownData.map(d => d.drawdown);
+
+    return {
+      title: { text: '回撤曲线', left: 'center', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'axis' },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLabel: { rotate: 30, fontSize: 10 },
+      },
+      yAxis: {
+        type: 'value',
+        name: '回撤',
+        axisLabel: { formatter: (v: number) => v.toFixed(0) },
+      },
+      series: [{
+        name: '回撤',
+        type: 'line',
+        data: values,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { width: 2, color: '#ef4444' },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(239, 68, 68, 0.3)' },
+            { offset: 1, color: 'rgba(239, 68, 68, 0.05)' },
+          ]),
+        },
+      }],
+    };
+  }, [result.drawdown, result.daily_pnl]);
+
+  // 收益分布图配置
+  const pnlDistributionOption = useMemo(() => {
+    const trades = result.trades || [];
+    if (trades.length === 0) return null;
+
+    const pnls = trades.map(t => t.pnl);
+    const min = Math.min(...pnls);
+    const max = Math.max(...pnls);
+    const binCount = 20;
+    const binWidth = (max - min) / binCount;
+
+    const bins = Array(binCount).fill(0);
+    const binLabels: string[] = [];
+
+    for (let i = 0; i < binCount; i++) {
+      const binMin = min + i * binWidth;
+      const binMax = min + (i + 1) * binWidth;
+      binLabels.push(`${binMin.toFixed(0)}~${binMax.toFixed(0)}`);
+    }
+
+    pnls.forEach(pnl => {
+      const binIndex = Math.min(Math.floor((pnl - min) / binWidth), binCount - 1);
+      bins[binIndex]++;
+    });
+
+    return {
+      title: { text: '盈亏分布', left: 'center', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: binLabels,
+        axisLabel: { rotate: 45, fontSize: 8, interval: 2 },
+      },
+      yAxis: { type: 'value', name: '次数' },
+      series: [{
+        name: '交易次数',
+        type: 'bar',
+        data: bins,
+        itemStyle: {
+          color: (params: any) => {
+            // 根据区间索引判断颜色
+            const idx = params.dataIndex;
+            const mid = binCount / 2;
+            return idx < mid ? '#ef4444' : '#10b981';
+          },
+        },
+      }],
+    };
+  }, [result.trades]);
+
+  return (
+    <div>
+      {/* 关键指标 */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        {metrics.filter(m => m.value !== undefined).map(m => (
+          <Col span={6} key={m.label}>
+            <Card bodyStyle={{ padding: 16 }} style={{ borderRadius: 12 }}>
+              <Typography.Text type="tertiary" size="small">{m.label}</Typography.Text>
+              <br />
+              <Typography.Text
+                strong
+                style={{
+                  fontSize: 24,
+                  color: typeof m.value === 'number' ? m.color(m.value) : 'var(--semi-color-text-0)',
+                }}
+              >
+                {typeof m.value === 'number' ? m.value.toFixed(2) : m.value}
+                {m.unit}
+              </Typography.Text>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      <Divider style={{ margin: '24px 0' }} />
+
+      {/* 图表 */}
+      <Row gutter={[16, 16]}>
+        {/* 权益曲线 */}
+        <Col span={12}>
+          <Card style={{ borderRadius: 12 }}>
+            <ReactECharts option={equityChartOption} style={{ height: 300 }} />
+          </Card>
+        </Col>
+
+        {/* 回撤曲线 */}
+        <Col span={12}>
+          <Card style={{ borderRadius: 12 }}>
+            <ReactECharts option={drawdownChartOption} style={{ height: 300 }} />
+          </Card>
+        </Col>
+
+        {/* 盈亏分布 */}
+        {pnlDistributionOption && (
+          <Col span={12}>
+            <Card style={{ borderRadius: 12 }}>
+              <ReactECharts option={pnlDistributionOption} style={{ height: 300 }} />
+            </Card>
+          </Col>
+        )}
+      </Row>
     </div>
   );
 }
