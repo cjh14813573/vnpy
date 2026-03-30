@@ -89,3 +89,11 @@ export const dataApi = {
   importCsv: (data: Record<string, any>) => client.post('/api/data/import-csv', data),
   exportCsv: (data: Record<string, any>) => client.post('/api/data/export-csv', data),
 };
+
+// ============ 操作日志 ============
+export const logsApi = {
+  query: (params?: Record<string, any>) => client.get('/api/logs/operations', { params }),
+  stats: (days?: number) => client.get('/api/logs/operations/stats', { params: { days } }),
+  types: () => client.get('/api/logs/operations/types'),
+  cleanup: (maxAgeDays: number) => client.delete('/api/logs/operations/cleanup', { params: { max_age_days: maxAgeDays } }),
+};

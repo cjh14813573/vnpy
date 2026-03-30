@@ -12,27 +12,44 @@ import BacktestPage from './pages/BacktestPage';
 import DataPage from './pages/DataPage';
 import RiskPage from './pages/RiskPage';
 import SettingsPage from './pages/SettingsPage';
+import LogsPage from './pages/LogsPage';
+import { useThemeStore } from './stores/themeStore';
 
-export default function App() {
+function AppContent() {
+  const { mode } = useThemeStore();
+  // Theme mode is used to trigger re-render when theme changes
+  // CSS variables handle the actual styling
+  document.body.setAttribute('data-theme', mode);
+
   return (
     <ConfigProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
-            <Route index element={<DashboardPage />} />
-            <Route path="market" element={<MarketPage />} />
-            <Route path="trading" element={<TradingPage />} />
-            <Route path="strategy" element={<StrategyPage />} />
-            <Route path="strategy/:name" element={<StrategyDetailPage />} />
-            <Route path="backtest" element={<BacktestPage />} />
-            <Route path="data" element={<DataPage />} />
-            <Route path="risk" element={<RiskPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </BrowserRouter>
+      <div style={{
+        minHeight: '100vh',
+        background: 'var(--semi-color-bg-0)',
+      }}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
+              <Route index element={<DashboardPage />} />
+              <Route path="market" element={<MarketPage />} />
+              <Route path="trading" element={<TradingPage />} />
+              <Route path="strategy" element={<StrategyPage />} />
+              <Route path="strategy/:name" element={<StrategyDetailPage />} />
+              <Route path="backtest" element={<BacktestPage />} />
+              <Route path="data" element={<DataPage />} />
+              <Route path="risk" element={<RiskPage />} />
+              <Route path="logs" element={<LogsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </BrowserRouter>
+      </div>
     </ConfigProvider>
   );
+}
+
+export default function App() {
+  return <AppContent />;
 }

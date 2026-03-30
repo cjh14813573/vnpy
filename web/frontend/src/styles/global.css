@@ -1,0 +1,234 @@
+/**
+ * 全局样式 - vnpy Web
+ * 统一基础样式、动画、工具类
+ */
+
+/* ===== CSS 变量 ===== */
+:root {
+  /* 圆角 */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+
+  /* 金融色 */
+  --color-up: #d93026;
+  --color-down: #238636;
+  --color-up-bg: rgba(217, 48, 38, 0.1);
+  --color-down-bg: rgba(35, 134, 54, 0.1);
+}
+
+/* ===== 基础重置 ===== */
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== 滚动条美化 ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--semi-color-fill-2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--semi-color-fill-1);
+}
+
+/* ===== 选中文字 ===== */
+::selection {
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+}
+
+/* ===== 动画 ===== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* ===== 工具类 ===== */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* 渐变文字 */
+.gradient-text {
+  background: linear-gradient(135deg, var(--semi-color-primary), var(--semi-color-success));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 渐变背景 */
+.gradient-bg {
+  background: linear-gradient(135deg, var(--semi-color-primary), var(--semi-color-success));
+}
+
+/* 玻璃态 */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* 卡片悬停效果 */
+.card-hover {
+  transition: all 0.25s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 数字字体（等宽） */
+.font-mono {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+}
+
+/* 文字截断 */
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-ellipsis-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 上涨下跌色 */
+.text-up {
+  color: var(--color-up) !important;
+}
+
+.text-down {
+  color: var(--color-down) !important;
+}
+
+.bg-up {
+  background-color: var(--color-up-bg) !important;
+}
+
+.bg-down {
+  background-color: var(--color-down-bg) !important;
+}
+
+/* 标签样式 */
+.tag-up {
+  background-color: var(--color-up-bg) !important;
+  color: var(--color-up) !important;
+  border-color: var(--color-up) !important;
+}
+
+.tag-down {
+  background-color: var(--color-down-bg) !important;
+  color: var(--color-down) !important;
+  border-color: var(--color-down) !important;
+}
+
+/* ===== 表格样式优化 ===== */
+.semi-table {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.semi-table-row:hover {
+  background-color: var(--semi-color-fill-0) !important;
+}
+
+/* ===== 响应式工具 ===== */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .hide-desktop {
+    display: none !important;
+  }
+}
+
+/* ===== 打印样式 ===== */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
