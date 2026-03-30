@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Typography, Card, Input, Select, Button, Row, Col, Toast,
-  Table, Progress, Tag, Space, Tabs, Empty, Spin, Divider
+  Table, Progress, Tag, Space, Tabs, Empty, Spin, Divider, Modal
 } from '@douyinfe/semi-ui';
 import {
   IconPlay, IconDelete, IconRefresh, IconPieChartStroked,
-  IconList, IconSetting
+  IconList, IconSetting, IconHistogram, IconCandlestickChartStroked
 } from '@douyinfe/semi-icons';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
@@ -51,6 +51,22 @@ export default function BacktestPage() {
   // WebSocket 进度
   const { backtestProgress, connectionState } = useRealtimeStore();
   useWebSocket();
+
+  // 优化表单状态
+  const [optimizeForm, setOptimizeForm] = useState({
+    class_name: '', vt_symbol: '', interval: '1m',
+    start: '2024-01-01', end: '2024-06-30',
+    rate: '0.0001', slippage: '0', size: '1', capital: '1000000',
+    param_name: '', param_start: '', param_end: '', param_step: '',
+  });
+  const [optimizeResults, setOptimizeResults] = useState<any[]>([]);
+  const [optimizeLoading, setOptimizeLoading] = useState(false);
+
+  // K线数据状态
+  const [candleData, setCandleData] = useState<any[]>([]);
+  const [tradesData, setTradesData] = useState<any[]>([]);
+  const [showCandleModal, setShowCandleModal] = useState(false);
+  const [candleLoading, setCandleLoading] = useState(false);
 
   // 加载策略类和任务列表
   useEffect(() => {
@@ -139,7 +155,100 @@ export default function BacktestPage() {
   };
 
   const updateForm = (key: string, value: string) => setForm({ ...form, [key]: value });
+  const updateOptimizeForm = (key: string, value: string) => setOptimizeForm({ ...optimizeForm, [key]: value });
   const labelStyle = { marginBottom: 8, display: 'block' };
+
+  // 创建优化任务
+  const handleCreateOptimizeTask = async () => {
+    if (!optimizeForm.class_name || !optimizeForm.vt_symbol || !optimizeForm.param_name) {
+      Toast.error('请填写完整的优化参数');
+      return;
+    }
+
+    setOptimizeLoading(true);
+    try {
+      // 构建参数范围
+      const paramRanges: Record<string, number[]> = {};
+      const start = parseFloat(optimizeForm.param_start);
+      const end = parseFloat(optimizeForm.param_end);
+      const step = parseFloat(optimizeForm.param_step) || 1;
+      const values: number[] = [];
+      for (let v = start; v <= end; v += step) {
+        values.push(Math.round(v * 100) / 100);
+      }
+      paramRanges[optimizeForm.param_name] = values;
+
+      const res = await backtestApi.createOptimizeTask({
+        class_name: optimizeForm.class_name,
+        vt_symbol: optimizeForm.vt_symbol,
+        interval: optimizeForm.interval,
+        start: optimizeForm.start,
+        end: optimizeForm.end,
+        rate: parseFloat(optimizeForm.rate),
+        slippage: parseFloat(optimizeForm.slippage),
+        size: parseFloat(optimizeForm.size),
+        capital: parseFloat(optimizeForm.capital),
+        optimization_setting: paramRanges,
+      });
+
+      Toast.success('优化任务已创建');
+      setActiveTab('tasks');
+      loadTasks();
+    } catch (err: any) {
+      Toast.error(err.response?.data?.detail || '创建优化任务失败');
+    } finally {
+      setOptimizeLoading(false);
+    }
+  };
+
+  // 查看K线图表
+  const openCandleChart = async (task: BacktestTask) => {
+    setShowCandleModal(true);
+    setCandleLoading(true);
+    try {
+      // 获取历史K线数据（模拟）
+      // 实际应该从后端获取真实K线数据
+      const mockCandles = generateMockCandles(task.vt_symbol || 'rb2410.SHFE');
+      setCandleData(mockCandles);
+
+      // 获取交易记录作为标记
+      if (task.result?.trades) {
+        setTradesData(task.result.trades);
+      }
+    } catch (err) {
+      Toast.error('加载K线数据失败');
+    } finally {
+      setCandleLoading(false);
+    }
+  };
+
+  // 生成模拟K线数据
+  const generateMockCandles = (vtSymbol: string) => {
+    const candles = [];
+    let price = 3500;
+    const start = new Date('2024-01-01');
+    for (let i = 0; i < 100; i++) {
+      const date = new Date(start);
+      date.setDate(date.getDate() + i);
+      const open = price;
+      const change = (Math.random() - 0.5) * 100;
+      const close = open + change;
+      const high = Math.max(open, close) + Math.random() * 30;
+      const low = Math.min(open, close) - Math.random() * 30;
+      const volume = Math.floor(Math.random() * 10000) + 5000;
+
+      candles.push({
+        date: date.toISOString().split('T')[0],
+        open,
+        high,
+        low,
+        close,
+        volume,
+      });
+      price = close;
+    }
+    return candles;
+  };
 
   // 任务列表列定义
   const taskColumns = [
@@ -211,14 +320,23 @@ export default function BacktestPage() {
             </Button>
           )}
           {record.status === 'completed' && (
-            <Button
-              icon={<IconPieChartStroked />}
-              size="small"
-              type="primary"
-              onClick={() => handleViewResult(record)}
-            >
-              结果
-            </Button>
+            <>
+              <Button
+                icon={<IconPieChartStroked />}
+                size="small"
+                type="primary"
+                onClick={() => handleViewResult(record)}
+              >
+                结果
+              </Button>
+              <Button
+                icon={<IconCandlestickChartStroked />}
+                size="small"
+                onClick={() => openCandleChart(record)}
+              >
+                K线
+              </Button>
+            </>
           )}
           {record.status === 'failed' && (
             <Tag color="red" size="small">失败</Tag>
@@ -408,7 +526,188 @@ export default function BacktestPage() {
             <Empty description="请先选择一个任务查看结果" />
           )}
         </TabPane>
+
+        <TabPane
+          tab={<span><IconHistogram style={{ marginRight: 4 }} />参数优化</span>}
+          itemKey="optimize"
+        >
+          <Row gutter={16}>
+            <Col span={8}>
+              <Card title="优化配置" style={{ borderRadius: 12 }}>
+                <div>
+                  <label style={labelStyle}>策略类</label>
+                  <Select
+                    value={optimizeForm.class_name}
+                    onChange={(v) => updateOptimizeForm('class_name', v as string)}
+                    style={{ width: '100%', marginBottom: 12 }}
+                    placeholder="选择策略"
+                    optionList={classes.map((c) => ({ value: c, label: c }))}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>合约</label>
+                  <Input
+                    value={optimizeForm.vt_symbol}
+                    onChange={(v) => updateOptimizeForm('vt_symbol', v)}
+                    placeholder="rb2410.SHFE"
+                    style={{ marginBottom: 12 }}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>周期</label>
+                  <Select
+                    value={optimizeForm.interval}
+                    onChange={(v) => updateOptimizeForm('interval', v as string)}
+                    style={{ width: '100%', marginBottom: 12 }}
+                    optionList={[
+                      { value: '1m', label: '1分钟' },
+                      { value: '1h', label: '1小时' },
+                      { value: 'd', label: '日线' },
+                    ]}
+                  />
+                </div>
+                <Row gutter={8}>
+                  <Col span={12}>
+                    <div>
+                      <label style={labelStyle}>开始日期</label>
+                      <Input type="date" value={optimizeForm.start} onChange={(v) => updateOptimizeForm('start', v)} />
+                    </div>
+                  </Col>
+                  <Col span={12}>
+                    <div>
+                      <label style={labelStyle}>结束日期</label>
+                      <Input type="date" value={optimizeForm.end} onChange={(v) => updateOptimizeForm('end', v)} />
+                    </div>
+                  </Col>
+                </Row>
+                <Divider margin="12px" />
+                <Text strong>优化参数</Text>
+                <div style={{ marginTop: 8 }}>
+                  <label style={labelStyle}>参数名</label>
+                  <Input
+                    value={optimizeForm.param_name}
+                    onChange={(v) => updateOptimizeForm('param_name', v)}
+                    placeholder="如: fast_window"
+                    style={{ marginBottom: 12 }}
+                  />
+                </div>
+                <Row gutter={8}>
+                  <Col span={8}>
+                    <div>
+                      <label style={labelStyle}>起始值</label>
+                      <Input value={optimizeForm.param_start} onChange={(v) => updateOptimizeForm('param_start', v)} />
+                    </div>
+                  </Col>
+                  <Col span={8}>
+                    <div>
+                      <label style={labelStyle}>结束值</label>
+                      <Input value={optimizeForm.param_end} onChange={(v) => updateOptimizeForm('param_end', v)} />
+                    </div>
+                  </Col>
+                  <Col span={8}>
+                    <div>
+                      <label style={labelStyle}>步长</label>
+                      <Input value={optimizeForm.param_step} onChange={(v) => updateOptimizeForm('param_step', v)} placeholder="1" />
+                    </div>
+                  </Col>
+                </Row>
+                <Button
+                  theme="solid"
+                  block
+                  size="large"
+                  icon={<IconOptimize />}
+                  loading={optimizeLoading}
+                  onClick={handleCreateOptimizeTask}
+                  disabled={!optimizeForm.class_name || !optimizeForm.vt_symbol}
+                  style={{ marginTop: 20, borderRadius: 10 }}
+                >
+                  开始优化
+                </Button>
+              </Card>
+            </Col>
+            <Col span={16}>
+              {optimizeResults.length > 0 ? (
+                <Card title="优化结果" style={{ borderRadius: 12 }}>
+                  <Table
+                    columns={[
+                      { title: '参数值', dataIndex: 'param_value', render: (v: number) => v.toFixed(2) },
+                      { title: '总收益率%', dataIndex: 'total_return', render: (v: number) => v?.toFixed(2) },
+                      { title: '夏普比率', dataIndex: 'sharpe_ratio', render: (v: number) => v?.toFixed(3) },
+                      { title: '最大回撤%', dataIndex: 'max_drawdown', render: (v: number) => v?.toFixed(2) },
+                      { title: '交易次数', dataIndex: 'total_trades' },
+                    ]}
+                    dataSource={optimizeResults}
+                    pagination={false}
+                    size="small"
+                  />
+                </Card>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--semi-color-text-2)' }}>
+                  <Title heading={4} type="tertiary">配置优化参数</Title>
+                  <p>系统将遍历参数范围，寻找最优参数组合</p>
+                </div>
+              )}
+            </Col>
+          </Row>
+        </TabPane>
       </Tabs>
+
+      {/* K线图表Modal */}
+      <Modal
+        title="K线图表"
+        visible={showCandleModal}
+        onCancel={() => setShowCandleModal(false)}
+        footer={null}
+        width={1000}
+        height={600}
+      >
+        {candleLoading ? (
+          <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
+        ) : (
+          <ReactECharts
+            option={{
+              title: { text: 'K线图表', left: 'center' },
+              tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+              grid: { left: '5%', right: '5%', bottom: '15%', top: '15%' },
+              xAxis: {
+                type: 'category',
+                data: candleData.map(d => d.date),
+                axisLabel: { rotate: 45 },
+              },
+              yAxis: {
+                type: 'value',
+                scale: true,
+              },
+              dataZoom: [
+                { type: 'inside', start: 0, end: 100 },
+                { type: 'slider', start: 0, end: 100, bottom: 10 },
+              ],
+              series: [
+                {
+                  name: 'K线',
+                  type: 'candlestick',
+                  data: candleData.map(d => [d.open, d.close, d.low, d.high]),
+                  itemStyle: {
+                    color: '#ef4444',
+                    color0: '#10b981',
+                    borderColor: '#ef4444',
+                    borderColor0: '#10b981',
+                  },
+                },
+                {
+                  name: '成交量',
+                  type: 'bar',
+                  xAxisIndex: 0,
+                  yAxisIndex: 0,
+                  data: candleData.map(d => d.volume),
+                  itemStyle: { color: 'rgba(100, 100, 100, 0.3)' },
+                },
+              ],
+            }}
+            style={{ height: 500 }}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

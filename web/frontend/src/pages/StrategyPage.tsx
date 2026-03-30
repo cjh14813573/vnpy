@@ -4,7 +4,7 @@ import {
   Typography, Card, Button, Table, Tag, Row, Col, Modal, Input, Select, Toast, Space,
   Popconfirm, Popover
 } from '@douyinfe/semi-ui';
-import { IconLock, IconKey } from '@douyinfe/semi-icons';
+import { IconLock, IconKey, IconCode } from '@douyinfe/semi-icons';
 import { strategyApi } from '../api';
 import type { StrategyInstance } from '../api/types';
 
@@ -28,6 +28,12 @@ export default function StrategyPage() {
   const [editingStrategy, setEditingStrategy] = useState<StrategyInstance | null>(null);
   const [editParams, setEditParams] = useState<Record<string, any>>({});
   const [editSetting, setEditSetting] = useState<Record<string, string>>({});
+
+  // 源码查看状态
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [codeContent, setCodeContent] = useState('');
+  const [codeClassName, setCodeClassName] = useState('');
+  const [codeLoading, setCodeLoading] = useState(false);
 
   const load = async () => {
     try {
@@ -149,6 +155,21 @@ export default function StrategyPage() {
       load();
     } catch (err: any) {
       Toast.error(err.response?.data?.detail || '保存失败');
+    }
+  };
+
+  // 查看源码
+  const openCodeView = async (className: string) => {
+    setCodeClassName(className);
+    setCodeOpen(true);
+    setCodeLoading(true);
+    try {
+      const res = await strategyApi.classCode(className);
+      setCodeContent(res.data.code || '无法加载源码');
+    } catch (err: any) {
+      setCodeContent(err.response?.data?.detail || '加载源码失败');
+    } finally {
+      setCodeLoading(false);
     }
   };
 
@@ -278,20 +299,24 @@ export default function StrategyPage() {
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {classes.map((cls) => (
           <Col span={6} key={cls}>
-            <div
+            <Card
+              bodyStyle={{ padding: 16 }}
+              style={{ borderRadius: 12 }}
+              actions={[
+                <Button theme="borderless" icon={<IconCode />} onClick={(e) => { e.stopPropagation(); openCodeView(cls); }}>
+                  源码
+                </Button>
+              ]}
               onClick={() => {
                 setAddForm({ ...addForm, class_name: cls });
                 handleClassChange(cls);
                 setAddOpen(true);
               }}
-              style={{ cursor: 'pointer' }}
             >
-              <Card bodyStyle={{ padding: 16 }} style={{ borderRadius: 12 }}>
-                <Text strong>{cls}</Text>
-                <br />
-                <Text type="tertiary" size="small">CTA 策略模板</Text>
-              </Card>
-            </div>
+              <Text strong>{cls}</Text>
+              <br />
+              <Text type="tertiary" size="small">CTA 策略模板</Text>
+            </Card>
           </Col>
         ))}
       </Row>
@@ -418,6 +443,33 @@ export default function StrategyPage() {
             保存参数
           </Button>
         </div>
+      </Modal>
+
+      {/* 源码查看对话框 */}
+      <Modal
+        title={`策略源码 - ${codeClassName}`}
+        visible={codeOpen}
+        onCancel={() => setCodeOpen(false)}
+        footer={null}
+        style={{ borderRadius: 12 }}
+        width={900}
+        height={600}
+      >
+        <pre
+          style={{
+            background: '#1e1e1e',
+            color: '#d4d4d4',
+            padding: 16,
+            borderRadius: 8,
+            overflow: 'auto',
+            maxHeight: 500,
+            fontSize: 13,
+            fontFamily: 'monospace',
+            lineHeight: 1.5,
+          }}
+        >
+          {codeLoading ? '加载中...' : codeContent}
+        </pre>
       </Modal>
     </div>
   );

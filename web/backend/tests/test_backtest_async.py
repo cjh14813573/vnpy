@@ -69,22 +69,27 @@ class TestBacktestTaskService:
 
     def test_concurrent_limit(self):
         """并发限制测试"""
-        backtest_runner._max_workers = 1  # 限制为1个并发
+        old_max_workers = backtest_runner._max_workers
+        old_running_count = backtest_runner._running_count
 
-        # 创建并启动第一个任务
-        task1 = backtest_runner.create_task("backtest", {"test": 1})
-        backtest_runner.start_task(task1)
+        try:
+            backtest_runner._max_workers = 1  # 限制为1个并发
+            backtest_runner._running_count = 1  # 模拟已有1个任务在运行
 
-        # 创建第二个任务
-        task2 = backtest_runner.create_task("backtest", {"test": 2})
+            # 创建任务（不启动）
+            task2 = backtest_runner.create_task("backtest", {"test": 2})
 
-        # 尝试启动第二个任务（应该失败，因为并发限制）
-        success = backtest_runner.start_task(task2)
-        assert success is False
+            # 尝试启动任务（应该失败，因为并发限制）
+            success = backtest_runner.start_task(task2)
+            assert success is False
 
-        # 第二个任务应保持 pending 状态
-        task_info = backtest_runner.get_task(task2)
-        assert task_info["status"] == "pending"
+            # 第二个任务应保持 pending 状态
+            task_info = backtest_runner.get_task(task2)
+            assert task_info["status"] == "pending"
+        finally:
+            # 清理
+            backtest_runner._max_workers = old_max_workers
+            backtest_runner._running_count = old_running_count
 
     def test_cancel_pending_task(self):
         """取消等待中的任务"""
@@ -314,22 +319,9 @@ class TestBacktestAsyncAPI:
 
     def test_cancel_task(self, client, auth_headers):
         """API: 取消任务"""
-        # 创建任务
-        create_resp = client.post("/api/backtest/tasks", json={
-            "class_name": "AtrRsiStrategy",
-            "vt_symbol": "rb2410.SHFE",
-            "interval": "1m",
-            "start": "2024-01-01",
-            "end": "2024-02-01",
-            "rate": 0.0,
-            "slippage": 0.0,
-            "size": 1,
-            "pricetick": 0.01,
-            "capital": 100000.0,
-            "setting": {}
-        }, headers=auth_headers)
-
-        task_id = create_resp.json()["task_id"]
+        # 直接使用内部方法创建任务（绕过自动启动）
+        from services.backtest_runner import backtest_runner
+        task_id = backtest_runner.create_task("backtest", {"test": True})
 
         # 取消任务
         resp = client.delete(f"/api/backtest/tasks/{task_id}", headers=auth_headers)
@@ -346,22 +338,12 @@ class TestBacktestAsyncAPI:
 
     def test_get_task_result_not_completed(self, client, auth_headers):
         """API: 获取未完成任务的結果（应该失败）"""
-        # 创建但不启动任务
-        create_resp = client.post("/api/backtest/tasks", json={
-            "class_name": "AtrRsiStrategy",
-            "vt_symbol": "rb2410.SHFE",
-            "interval": "1m",
-            "start": "2024-01-01",
-            "end": "2024-02-01",
-            "rate": 0.0,
-            "slippage": 0.0,
-            "size": 1,
-            "pricetick": 0.01,
-            "capital": 100000.0,
-            "setting": {}
-        }, headers=auth_headers)
+        # 创建任务（使用内部方法绕过自动启动）
+        from services.backtest_runner import backtest_runner, TaskStatus
+        task_id = backtest_runner.create_task("backtest", {"test": True})
 
-        task_id = create_resp.json()["task_id"]
+        # 确保任务是 pending 状态
+        backtest_runner._tasks[task_id].status = TaskStatus.PENDING
 
         # 尝试获取结果
         resp = client.get(f"/api/backtest/tasks/{task_id}/result", headers=auth_headers)

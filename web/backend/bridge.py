@@ -82,6 +82,20 @@ class VnpyBridge:
                 except Exception as e:
                     print(f"[Bridge] Failed to add CtaStrategyApp: {e}")
 
+                # 添加模拟交易应用
+                try:
+                    from vnpy_paperaccount import PaperAccountApp
+                    self._main_engine.add_app(PaperAccountApp)
+                except Exception as e:
+                    print(f"[Bridge] Failed to add PaperAccountApp: {e}")
+
+                # 添加算法交易应用
+                try:
+                    from vnpy_algotrading import AlgoTradingApp
+                    self._main_engine.add_app(AlgoTradingApp)
+                except Exception as e:
+                    print(f"[Bridge] Failed to add AlgoTradingApp: {e}")
+
                 # 注册事件回调
                 self._register_event(EVENT_TICK, self._on_tick)
                 self._register_event(EVENT_ORDER, self._on_order)
@@ -570,6 +584,342 @@ class VnpyBridge:
             raise RuntimeError("CTA engine not initialized")
         cta.stop_all_strategies()
         return True
+
+    def run_backtest(
+        self,
+        class_name: str,
+        vt_symbol: str,
+        interval: str,
+        start: str,
+        end: str,
+        rate: float,
+        slippage: float,
+        size: int,
+        pricetick: float,
+        capital: int,
+        setting: dict,
+        progress_callback=None
+    ) -> dict:
+        """运行回测"""
+        cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
+
+        from vnpy_ctastrategy.backtesting import BacktestingEngine
+        from vnpy_ctastrategy.base import BacktestingMode
+        from vnpy.trader.constant import Interval as VnpyInterval
+
+        if progress_callback:
+            progress_callback(20, "初始化回测引擎...")
+
+        engine = BacktestingEngine()
+        engine.set_parameters(
+            vt_symbol=vt_symbol,
+            interval=VnpyInterval(interval),
+            start=datetime.fromisoformat(start),
+            end=datetime.fromisoformat(end),
+            rate=rate,
+            slippage=slippage,
+            size=size,
+            pricetick=pricetick,
+            capital=capital,
+            mode=BacktestingMode.BAR
+        )
+
+        if progress_callback:
+            progress_callback(30, "加载历史数据...")
+        engine.load_data()
+
+        if progress_callback:
+            progress_callback(50, "运行回测...")
+        engine.add_strategy(cta.classes[class_name], setting)
+        engine.run_backtesting()
+
+        if progress_callback:
+            progress_callback(80, "计算回测结果...")
+        engine.calculate_result()
+        stats = engine.calculate_statistics()
+
+        # 获取成交记录
+        trades = []
+        for trade in engine.trades.values():
+            trades.append({
+                "tradeid": trade.tradeid,
+                "datetime": trade.datetime.isoformat() if trade.datetime else "",
+                "direction": trade.direction.value if trade.direction else "",
+                "offset": trade.offset.value if trade.offset else "",
+                "price": trade.price,
+                "volume": trade.volume,
+                "symbol": trade.symbol,
+            })
+
+        # 获取每日结果
+        daily_results = []
+        for date, result in engine.daily_df.iterrows():
+            daily_results.append({
+                "date": str(date),
+                "close_price": result.get("close_price", 0),
+                "net_pnl": result.get("net_pnl", 0),
+                "commission": result.get("commission", 0),
+                "slippage": result.get("slippage", 0),
+                "trading_pnl": result.get("trading_pnl", 0),
+                "holding_pnl": result.get("holding_pnl", 0),
+                "total_pnl": result.get("total_pnl", 0),
+            })
+
+        result = {
+            "total_return": stats.get("total_return", 0),
+            "annual_return": stats.get("annual_return", 0),
+            "max_drawdown": stats.get("max_drawdown", 0),
+            "max_ddpercent": stats.get("max_ddpercent", 0),
+            "sharpe_ratio": stats.get("sharpe_ratio", 0),
+            "total_trade_count": stats.get("total_trade_count", 0),
+            "winning_trade_count": stats.get("winning_trade_count", 0),
+            "losing_trade_count": stats.get("losing_trade_count", 0),
+            "win_rate": stats.get("win_rate", 0),
+            "daily_results": daily_results,
+            "trades": trades,
+            "capital": capital,
+        }
+
+        engine.clear_data()
+        return result
+
+    def get_strategy_source(self, class_name: str) -> str:
+        """获取策略源码"""
+        cta = self._get_cta_engine()
+        if cta is None:
+            return ""
+        file_path = cta.get_strategy_class_file(class_name)
+        if file_path and Path(file_path).exists():
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        return ""
+
+    def run_backtest_optimization(
+        self,
+        class_name: str,
+        vt_symbol: str,
+        interval: str,
+        start: str,
+        end: str,
+        rate: float,
+        slippage: float,
+        size: int,
+        pricetick: float,
+        capital: int,
+        param_ranges: dict
+    ) -> list[dict]:
+        """运行参数优化"""
+        cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
+
+        from vnpy_ctastrategy.backtesting import BacktestingEngine
+        from vnpy_ctastrategy.base import BacktestingMode
+        from vnpy.trader.constant import Interval as VnpyInterval
+
+        results = []
+
+        # 生成参数组合
+        param_names = list(param_ranges.keys())
+        param_values = [param_ranges[name] for name in param_names]
+
+        # 笛卡尔积生成所有参数组合
+        import itertools
+        for combo in itertools.product(*param_values):
+            setting = dict(zip(param_names, combo))
+
+            engine = BacktestingEngine()
+            engine.set_parameters(
+                vt_symbol=vt_symbol,
+                interval=VnpyInterval(interval),
+                start=datetime.fromisoformat(start),
+                end=datetime.fromisoformat(end),
+                rate=rate,
+                slippage=slippage,
+                size=size,
+                pricetick=pricetick,
+                capital=capital,
+                mode=BacktestingMode.BAR
+            )
+            engine.add_strategy(cta.classes[class_name], setting)
+            engine.load_data()
+            engine.run_backtesting()
+            engine.calculate_result()
+            stats = engine.calculate_statistics()
+
+            result = {
+                "parameters": setting,
+                "total_return": stats.get("total_return", 0),
+                "sharpe_ratio": stats.get("sharpe_ratio", 0),
+                "max_drawdown": stats.get("max_drawdown", 0),
+                "total_trade_count": stats.get("total_trade_count", 0),
+                "daily_net_pnl": stats.get("daily_net_pnl", 0),
+            }
+            results.append(result)
+            engine.clear_data()
+
+        # 按夏普比率排序
+        results.sort(key=lambda x: x["sharpe_ratio"], reverse=True)
+        return results
+
+    # ============ 模拟交易 ============
+
+    def _get_paper_engine(self):
+        """获取模拟交易引擎"""
+        self.ensure_init()
+        if self._main_engine is None:
+            return None
+        return self._main_engine.get_engine("PaperAccount")
+
+    def get_paper_setting(self) -> dict:
+        """获取模拟交易设置"""
+        paper = self._get_paper_engine()
+        if paper is None:
+            return {}
+        return {
+            "instant_trade": paper.get_instant_trade(),
+            "trade_slippage": paper.get_trade_slippage(),
+            "timer_interval": paper.get_timer_interval(),
+        }
+
+    def set_paper_setting(self, instant_trade: bool = None, trade_slippage: float = None, timer_interval: int = None) -> bool:
+        """设置模拟交易参数"""
+        paper = self._get_paper_engine()
+        if paper is None:
+            raise RuntimeError("Paper engine not initialized")
+        if instant_trade is not None:
+            paper.set_instant_trade(instant_trade)
+        if trade_slippage is not None:
+            paper.set_trade_slippage(trade_slippage)
+        if timer_interval is not None:
+            paper.set_timer_interval(timer_interval)
+        paper.save_setting()
+        return True
+
+    def clear_paper_positions(self) -> bool:
+        """清空模拟持仓"""
+        paper = self._get_paper_engine()
+        if paper is None:
+            raise RuntimeError("Paper engine not initialized")
+        paper.clear_position()
+        return True
+
+    def get_paper_positions(self) -> list[dict]:
+        """获取模拟持仓"""
+        paper = self._get_paper_engine()
+        if paper is None:
+            return []
+        positions = []
+        for vt_symbol, pos in paper.positions.items():
+            positions.append({
+                "vt_symbol": vt_symbol,
+                "volume": pos.get("volume", 0),
+                "frozen": pos.get("frozen", 0),
+                "price": pos.get("price", 0),
+                "pnl": paper.calculate_pnl(vt_symbol),
+            })
+        return positions
+
+    # ============ 算法交易 ============
+
+    def _get_algo_engine(self):
+        """获取算法交易引擎"""
+        self.ensure_init()
+        if self._main_engine is None:
+            return None
+        return self._main_engine.get_engine("AlgoTrading")
+
+    def get_algo_templates(self) -> list[dict]:
+        """获取算法模板列表"""
+        algo = self._get_algo_engine()
+        if algo is None:
+            return []
+        templates = []
+        for name, template in algo.algo_templates.items():
+            templates.append({
+                "name": name,
+                "display_name": getattr(template, 'display_name', name),
+                "default_setting": getattr(template, 'default_setting', {}),
+            })
+        return templates
+
+    def get_algo_template(self, name: str) -> dict:
+        """获取算法模板详情"""
+        algo = self._get_algo_engine()
+        if algo is None:
+            return {}
+        template = algo.get_algo_template(name)
+        if template:
+            return {
+                "name": name,
+                "display_name": getattr(template, 'display_name', name),
+                "default_setting": getattr(template, 'default_setting', {}),
+                "variables": getattr(template, 'variables', []),
+            }
+        return {}
+
+    def start_algo(self, template_name: str, vt_symbol: str, direction: str, offset: str, price: float, volume: float, setting: dict = None) -> str:
+        """启动算法"""
+        algo = self._get_algo_engine()
+        if algo is None:
+            raise RuntimeError("Algo engine not initialized")
+        algo_name = algo.start_algo(template_name, vt_symbol, direction, offset, price, volume, setting or {})
+        return algo_name
+
+    def stop_algo(self, algo_name: str) -> bool:
+        """停止算法"""
+        algo = self._get_algo_engine()
+        if algo is None:
+            raise RuntimeError("Algo engine not initialized")
+        algo.stop_algo(algo_name)
+        return True
+
+    def stop_all_algos(self) -> bool:
+        """停止所有算法"""
+        algo = self._get_algo_engine()
+        if algo is None:
+            raise RuntimeError("Algo engine not initialized")
+        algo.stop_all()
+        return True
+
+    def pause_algo(self, algo_name: str) -> bool:
+        """暂停算法"""
+        algo = self._get_algo_engine()
+        if algo is None:
+            raise RuntimeError("Algo engine not initialized")
+        algo.pause_algo(algo_name)
+        return True
+
+    def resume_algo(self, algo_name: str) -> bool:
+        """恢复算法"""
+        algo = self._get_algo_engine()
+        if algo is None:
+            raise RuntimeError("Algo engine not initialized")
+        algo.resume_algo(algo_name)
+        return True
+
+    def get_algo_list(self) -> list[dict]:
+        """获取运行中的算法列表"""
+        algo = self._get_algo_engine()
+        if algo is None:
+            return []
+        algos = []
+        for name, a in algo.algos.items():
+            algos.append({
+                "name": name,
+                "template_name": a.__class__.__name__,
+                "vt_symbol": getattr(a, 'vt_symbol', ''),
+                "direction": getattr(a, 'direction', ''),
+                "offset": getattr(a, 'offset', ''),
+                "price": getattr(a, 'price', 0),
+                "volume": getattr(a, 'volume', 0),
+                "traded": getattr(a, 'traded', 0),
+                "status": getattr(a, 'status', ''),
+                "variables": a.get_variables(),
+            })
+        return algos
 
 
 # 全局单例

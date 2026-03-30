@@ -165,15 +165,24 @@ class BacktestRunner:
             return
 
         try:
-            # 模拟回测过程（实际应调用 vnpy 回测引擎）
-            self._simulate_backtest(task)
+            # 根据任务类型执行不同逻辑
+            if task.task_type == "backtest":
+                self._run_backtest(task)
+            elif task.task_type == "optimize":
+                self._run_optimization(task)
+            elif task.task_type == "download":
+                self._run_download(task)
+            else:
+                self._simulate_backtest(task)
 
             # 任务完成
             with self._mutex:
-                task.status = TaskStatus.COMPLETED
+                if task.status != TaskStatus.CANCELLED:
+                    task.status = TaskStatus.COMPLETED
                 task.completed_at = time.time()
                 task.progress = 100
-                task.progress_message = "回测完成"
+                if not task.progress_message or "取消" not in task.progress_message:
+                    task.progress_message = "任务完成"
                 self._running_count -= 1
 
         except Exception as e:
@@ -183,6 +192,97 @@ class BacktestRunner:
                 task.error_message = str(e)
                 task.completed_at = time.time()
                 self._running_count -= 1
+
+    def _run_backtest(self, task: BacktestTask):
+        """执行真实回测"""
+        from bridge import bridge
+
+        params = task.params
+        self._notify_progress(task.task_id, 10, "加载数据...")
+
+        try:
+            # 调用真实回测引擎
+            result = bridge.run_backtest(
+                class_name=params["class_name"],
+                vt_symbol=params["vt_symbol"],
+                interval=params["interval"],
+                start=params["start"],
+                end=params["end"],
+                rate=params["rate"],
+                slippage=params["slippage"],
+                size=params["size"],
+                pricetick=params["pricetick"],
+                capital=int(params["capital"]),
+                setting=params.get("setting", {}),
+                progress_callback=lambda p, m: self._notify_progress(task.task_id, p, m) if not task._cancel_event.is_set() else None
+            )
+
+            if task._cancel_event.is_set():
+                raise Exception("任务被取消")
+
+            task.result = result
+            self._notify_progress(task.task_id, 100, "回测完成")
+
+        except Exception as e:
+            raise e
+
+    def _run_optimization(self, task: BacktestTask):
+        """执行参数优化"""
+        from bridge import bridge
+
+        params = task.params
+        self._notify_progress(task.task_id, 5, "准备优化...")
+
+        try:
+            # 调用优化引擎
+            results = bridge.run_backtest_optimization(
+                class_name=params["class_name"],
+                vt_symbol=params["vt_symbol"],
+                interval=params["interval"],
+                start=params["start"],
+                end=params["end"],
+                rate=params["rate"],
+                slippage=params["slippage"],
+                size=params["size"],
+                pricetick=params["pricetick"],
+                capital=int(params["capital"]),
+                param_ranges=params.get("optimization_setting", {})
+            )
+
+            if task._cancel_event.is_set():
+                raise Exception("任务被取消")
+
+            task.result = {
+                "results": results[:20],  # 返回前20个最优结果
+                "total_combinations": len(results),
+            }
+            self._notify_progress(task.task_id, 100, f"优化完成，共测试 {len(results)} 组参数")
+
+        except Exception as e:
+            raise e
+
+    def _run_download(self, task: BacktestTask):
+        """执行数据下载"""
+        params = task.params
+        self._notify_progress(task.task_id, 10, "开始下载数据...")
+
+        # 模拟下载过程
+        total_steps = 5
+        for i in range(total_steps):
+            if task._cancel_event.is_set():
+                raise Exception("任务被取消")
+            time.sleep(0.5)
+            progress = 10 + int((i + 1) / total_steps * 80)
+            self._notify_progress(task.task_id, progress, f"下载进度: {i+1}/{total_steps}")
+
+        task.result = {
+            "vt_symbol": params["vt_symbol"],
+            "interval": params["interval"],
+            "start": params["start"],
+            "end": params["end"],
+            "records": 1000  # 模拟下载记录数
+        }
+        self._notify_progress(task.task_id, 100, "数据下载完成")
 
     def _simulate_backtest(self, task: BacktestTask):
         """模拟回测执行（实际实现时应替换为真实回测逻辑）"""

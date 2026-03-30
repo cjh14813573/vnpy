@@ -13,6 +13,8 @@ import DataPage from './pages/DataPage';
 import RiskPage from './pages/RiskPage';
 import SettingsPage from './pages/SettingsPage';
 import LogsPage from './pages/LogsPage';
+import AlgoPage from './pages/AlgoPage';
+import PaperPage from './pages/PaperPage';
 import { useThemeStore } from './stores/themeStore';
 
 function AppContent() {
@@ -40,6 +42,8 @@ function AppContent() {
               <Route path="data" element={<DataPage />} />
               <Route path="risk" element={<RiskPage />} />
               <Route path="logs" element={<LogsPage />} />
+              <Route path="algo" element={<AlgoPage />} />
+              <Route path="paper" element={<PaperPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" />} />

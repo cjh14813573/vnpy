@@ -82,22 +82,30 @@ class TestRiskManagement:
 
 
 class TestPaperTrading:
-    """模拟盘测试（当前返回 501）"""
+    """模拟盘测试（已实现）"""
 
-    def test_setting_not_implemented(self, client, auth_headers):
+    def test_setting(self, client, auth_headers):
         resp = client.get("/api/paper/setting", headers=auth_headers)
-        assert resp.status_code == 501
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), dict)
 
-    def test_update_setting_not_implemented(self, client, auth_headers):
+    def test_update_setting(self, client, auth_headers):
         resp = client.put("/api/paper/setting", json={
             "instant_trade": True,
             "trade_slippage": 0.0,
         }, headers=auth_headers)
-        assert resp.status_code == 501
+        assert resp.status_code == 200
+        assert resp.json().get("success") is True
 
-    def test_clear_not_implemented(self, client, auth_headers):
+    def test_clear(self, client, auth_headers):
         resp = client.post("/api/paper/clear", headers=auth_headers)
-        assert resp.status_code == 501
+        assert resp.status_code == 200
+        assert resp.json().get("success") is True
+
+    def test_get_positions(self, client, auth_headers):
+        resp = client.get("/api/paper/positions", headers=auth_headers)
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
 
     def test_unauthenticated(self, client):
         resp = client.get("/api/paper/setting")

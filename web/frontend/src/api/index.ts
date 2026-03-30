@@ -110,6 +110,26 @@ export const riskApi = {
   reset: () => client.post('/api/risk/reset'),
 };
 
+// ============ 模拟交易 ============
+export const paperApi = {
+  setting: () => client.get('/api/paper/setting'),
+  updateSetting: (data: Record<string, any>) => client.put('/api/paper/setting', data),
+  clear: () => client.post('/api/paper/clear'),
+  positions: () => client.get('/api/paper/positions'),
+};
+
+// ============ 算法交易 ============
+export const algoApi = {
+  templates: () => client.get('/api/algo/templates'),
+  template: (name: string) => client.get(`/api/algo/templates/${name}`),
+  list: () => client.get('/api/algo/list'),
+  start: (data: Record<string, any>) => client.post('/api/algo/start', data),
+  stop: (name: string) => client.post(`/api/algo/${name}/stop`),
+  stopAll: () => client.post('/api/algo/stop-all'),
+  pause: (name: string) => client.post(`/api/algo/${name}/pause`),
+  resume: (name: string) => client.post(`/api/algo/${name}/resume`),
+};
+
 // ============ 操作日志 ============
 export const logsApi = {
   query: (params?: Record<string, any>) => client.get('/api/logs/operations', { params }),
