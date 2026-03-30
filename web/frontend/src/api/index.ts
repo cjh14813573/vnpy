@@ -72,6 +72,16 @@ export const strategyApi = {
 // ============ 回测 ============
 export const backtestApi = {
   classes: () => client.get('/api/backtest/classes'),
+  // 异步任务接口
+  createTask: (data: Record<string, any>) => client.post('/api/backtest/tasks', data),
+  tasks: (params?: Record<string, any>) => client.get('/api/backtest/tasks', { params }),
+  task: (id: string) => client.get(`/api/backtest/tasks/${id}`),
+  cancelTask: (id: string) => client.delete(`/api/backtest/tasks/${id}`),
+  taskResult: (id: string) => client.get(`/api/backtest/tasks/${id}/result`),
+  taskChart: (id: string) => client.get(`/api/backtest/tasks/${id}/chart`),
+  // 优化任务
+  createOptimizeTask: (data: Record<string, any>) => client.post('/api/backtest/optimize-tasks', data),
+  // 旧接口（已废弃）
   run: (data: Record<string, any>) => client.post('/api/backtest/run', data),
   optimize: (data: Record<string, any>) => client.post('/api/backtest/optimize', data),
   result: () => client.get('/api/backtest/result'),

@@ -127,6 +127,27 @@ export interface BacktestResult {
   win_rate: number;
 }
 
+export type BacktestTaskType = 'backtest' | 'optimize' | 'download';
+export type BacktestTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface BacktestTask {
+  task_id: string;
+  task_type: BacktestTaskType;
+  status: BacktestTaskStatus;
+  class_name: string;
+  vt_symbol: string;
+  interval: string;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  progress?: number;
+  progress_message?: string;
+  error_message?: string;
+  result?: BacktestResult;
+}
+
 // ============ 系统 ============
 export interface SystemStatus {
   engine_ready: boolean;

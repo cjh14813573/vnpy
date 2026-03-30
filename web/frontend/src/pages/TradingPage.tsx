@@ -1,43 +1,82 @@
 import { useEffect, useState } from 'react';
 import { Typography, Card, Input, Select, Button, Table, Tag, Row, Col, Toast } from '@douyinfe/semi-ui';
 import { tradingApi } from '../api';
+import { useRealtimeStore } from '../stores/realtimeStore';
+import { useWebSocket, wsService } from '../services/websocket';
 
 export default function TradingPage() {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [trades, setTrades] = useState<any[]>([]);
-  const [positions, setPositions] = useState<any[]>([]);
-  const [, setAccounts] = useState<any[]>([]);
+  const { orders, trades, positions, connectionState } = useRealtimeStore();
+  const [accounts, setAccounts] = useState<any[]>([]);
 
   const [form, setForm] = useState({
     symbol: '', exchange: 'SHFE', direction: '多', type: '限价',
     volume: '1', price: '', offset: '开', gateway_name: 'CTP',
   });
 
-  const load = async () => {
-    try {
-      const [o, t, p, a] = await Promise.all([
-        tradingApi.activeOrders(), tradingApi.trades(),
-        tradingApi.positions(), tradingApi.accounts(),
-      ]);
-      setOrders(o.data); setTrades(t.data);
-      setPositions(p.data); setAccounts(a.data);
-    } catch { /* ignore */ }
-  };
+  // 初始化 WebSocket
+  useWebSocket();
 
-  useEffect(() => { load(); const timer = setInterval(load, 3000); return () => clearInterval(timer); }, []);
+  // 初始加载账户数据
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [o, t, p, a] = await Promise.all([
+          tradingApi.activeOrders(),
+          tradingApi.trades(),
+          tradingApi.positions(),
+          tradingApi.accounts(),
+        ]);
+
+        // 初始化 store
+        const orderMap: Record<string, any> = {};
+        (o.data.data || o.data || []).forEach((order: any) => {
+          orderMap[order.vt_orderid] = order;
+        });
+        useRealtimeStore.getState().setOrders(orderMap);
+
+        useRealtimeStore.getState().setTrades(t.data.data || t.data || []);
+
+        const posMap: Record<string, any> = {};
+        (p.data.data || p.data || []).forEach((pos: any) => {
+          posMap[pos.vt_symbol] = pos;
+        });
+        useRealtimeStore.getState().setPositions(posMap);
+
+        setAccounts(a.data.data || a.data || []);
+
+        // 订阅所有持仓合约的行情
+        const symbols = Object.keys(posMap);
+        if (symbols.length > 0) {
+          wsService.subscribe(symbols);
+        }
+      } catch { /* ignore */ }
+    };
+
+    load();
+  }, []);
+
+  const activeOrders = Object.values(orders).filter((o: any) =>
+    ['待报', '已报', '部成', '撤单中'].includes(o.status)
+  );
+  const tradeList = Object.values(trades).slice(0, 20);
+  const positionList = Object.values(positions);
 
   const handleSendOrder = async () => {
     try {
       const res = await tradingApi.sendOrder({ ...form, volume: parseFloat(form.volume), price: parseFloat(form.price) });
       Toast.success(`下单成功: ${res.data.vt_orderid}`);
-      load();
     } catch (err: any) {
       Toast.error(err.response?.data?.detail || '下单失败');
     }
   };
 
   const handleCancel = async (vt_orderid: string) => {
-    try { await tradingApi.cancelOrder({ vt_orderid }); load(); } catch { /* ignore */ }
+    try {
+      await tradingApi.cancelOrder({ vt_orderid });
+      Toast.success(`撤单已发送: ${vt_orderid}`);
+    } catch (err: any) {
+      Toast.error(err.response?.data?.detail || '撤单失败');
+    }
   };
 
   const updateForm = (key: string, value: any) => setForm({ ...form, [key]: value });
@@ -77,9 +116,23 @@ export default function TradingPage() {
 
   const labelStyle = { marginBottom: 12, display: 'block' };
 
+  // 连接状态指示器
+  const ConnectionIndicator = () => (
+    <Tag
+      color={connectionState === 'connected' ? 'green' : connectionState === 'connecting' ? 'orange' : 'red'}
+      size="small"
+      style={{ marginLeft: 8 }}
+    >
+      {connectionState === 'connected' ? '实时连接' : connectionState === 'connecting' ? '连接中' : '已断开'}
+    </Tag>
+  );
+
   return (
     <div>
-      <Typography.Title heading={4}>交易面板</Typography.Title>
+      <Typography.Title heading={4}>
+        交易面板
+        <ConnectionIndicator />
+      </Typography.Title>
       <Row gutter={16}>
         <Col span={8}>
           <Card title="下单" style={{ borderRadius: 12 }}>
@@ -129,15 +182,15 @@ export default function TradingPage() {
         <Col span={16}>
           <Typography.Title heading={5}>活跃委托</Typography.Title>
           <Card style={{ marginBottom: 16, borderRadius: 12 }}>
-            <Table columns={orderCols} dataSource={orders} pagination={false} size="small" empty="暂无活跃委托" />
+            <Table columns={orderCols} dataSource={activeOrders} pagination={false} size="small" empty="暂无活跃委托" />
           </Card>
           <Typography.Title heading={5}>最新成交</Typography.Title>
           <Card style={{ marginBottom: 16, borderRadius: 12 }}>
-            <Table columns={tradeCols} dataSource={trades.slice(-20).reverse()} pagination={false} size="small" empty="暂无成交" />
+            <Table columns={tradeCols} dataSource={tradeList} pagination={false} size="small" empty="暂无成交" />
           </Card>
           <Typography.Title heading={5}>持仓明细</Typography.Title>
           <Card style={{ borderRadius: 12 }}>
-            <Table columns={posCols} dataSource={positions} pagination={false} size="small" empty="暂无持仓" />
+            <Table columns={posCols} dataSource={positionList} pagination={false} size="small" empty="暂无持仓" />
           </Card>
         </Col>
       </Row>

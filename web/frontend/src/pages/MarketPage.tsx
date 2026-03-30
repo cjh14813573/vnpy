@@ -1,22 +1,32 @@
 import { useEffect, useState } from 'react';
 import { Typography, AutoComplete, Button, Table, Tag, Card, Row, Col, Space } from '@douyinfe/semi-ui';
 import { marketApi } from '../api';
-import { useMarketStore } from '../stores/marketStore';
+import { useRealtimeStore } from '../stores/realtimeStore';
+import { useWebSocket, wsService } from '../services/websocket';
 import KLineChart from '../components/KLineChart';
 
 export default function MarketPage() {
   const [contracts, setContracts] = useState<any[]>([]);
   const [selectedContract, setSelectedContract] = useState<any>(null);
   const [historyData, setHistoryData] = useState<any[]>([]);
-  const { ticks } = useMarketStore();
+  const { ticks, connectionState } = useRealtimeStore();
+
+  // 初始化 WebSocket
+  useWebSocket();
 
   useEffect(() => {
-    marketApi.contracts().then((r) => setContracts(r.data)).catch(() => {});
+    marketApi.contracts().then((r) => {
+      const contractsData = r.data.data || r.data || [];
+      setContracts(contractsData);
+    }).catch(() => {});
   }, []);
 
   const handleSubscribe = async () => {
     if (!selectedContract) return;
+    // 1. 调用后端 API 订阅行情
     await marketApi.subscribe({ vt_symbol: selectedContract.vt_symbol, gateway_name: selectedContract.gateway_name }).catch(() => {});
+    // 2. 通过 WebSocket 订阅推送
+    wsService.subscribe([selectedContract.vt_symbol]);
   };
 
   const handleQueryHistory = async () => {
@@ -38,9 +48,22 @@ export default function MarketPage() {
     { title: '网关', dataIndex: 'gateway_name', render: (v: string) => <Tag>{v}</Tag> },
   ];
 
+  // 连接状态指示器
+  const ConnectionIndicator = () => (
+    <Tag
+      color={connectionState === 'connected' ? 'green' : connectionState === 'connecting' ? 'orange' : 'red'}
+      size="small"
+    >
+      {connectionState === 'connected' ? '实时连接' : connectionState === 'connecting' ? '连接中' : '已断开'}
+    </Tag>
+  );
+
   return (
     <div>
-      <Typography.Title heading={4}>行情中心</Typography.Title>
+      <Typography.Title heading={4}>
+        行情中心
+        <ConnectionIndicator />
+      </Typography.Title>
 
       <Space style={{ marginBottom: 20 }}>
         <AutoComplete

@@ -2,33 +2,50 @@ import { useEffect, useState } from 'react';
 import { Card, Typography, Table, Tag, Row, Col, Empty, Spin } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked, IconPieChartStroked, IconOrderedList, IconServer } from '@douyinfe/semi-icons';
 import { tradingApi, systemApi } from '../api';
+import { useRealtimeStore } from '../stores/realtimeStore';
+import { useWebSocket } from '../services/websocket';
 import StatCard from '../components/StatCard';
 
 const { Title } = Typography;
 
 export default function DashboardPage() {
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [positions, setPositions] = useState<any[]>([]);
-  const [activeOrders, setActiveOrders] = useState<any[]>([]);
-  const [logs, setLogs] = useState<any[]>([]);
+  const { accounts, positions, orders, logs, connectionState } = useRealtimeStore();
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // 初始化 WebSocket 连接
+  useWebSocket();
+
+  // 初始加载 + 系统状态轮询
   useEffect(() => {
     const load = async () => {
       try {
-        const [accRes, posRes, ordersRes, logRes, statusRes] = await Promise.all([
+        const [accRes, posRes, ordersRes, statusRes] = await Promise.all([
           tradingApi.accounts(),
           tradingApi.positions(),
           tradingApi.activeOrders(),
-          systemApi.logs(),
           systemApi.status(),
         ]);
 
-        setAccounts(accRes.data.data || []);
-        setPositions(posRes.data.data || []);
-        setActiveOrders(ordersRes.data.data || []);
-        setLogs((logRes.data || []).slice(-20).reverse());
+        // 初始化 store 数据
+        const accMap: Record<string, any> = {};
+        (accRes.data.data || []).forEach((a: any) => {
+          accMap[a.vt_accountid || a.accountid] = a;
+        });
+        useRealtimeStore.getState().setAccounts(accMap);
+
+        const posMap: Record<string, any> = {};
+        (posRes.data.data || []).forEach((p: any) => {
+          posMap[p.vt_symbol] = p;
+        });
+        useRealtimeStore.getState().setPositions(posMap);
+
+        const orderMap: Record<string, any> = {};
+        (ordersRes.data.data || []).forEach((o: any) => {
+          orderMap[o.vt_orderid] = o;
+        });
+        useRealtimeStore.getState().setOrders(orderMap);
+
         setStatus(statusRes.data);
       } catch (err) {
         console.error('加载数据失败:', err);
@@ -38,14 +55,25 @@ export default function DashboardPage() {
     };
 
     load();
-    const timer = setInterval(load, 5000);
+
+    // 系统状态每 10 秒轮询一次（轻量级）
+    const timer = setInterval(() => {
+      systemApi.status().then(r => setStatus(r.data));
+    }, 10000);
     return () => clearInterval(timer);
   }, []);
 
-  const totalBalance = accounts.reduce((s, a) => s + (a.balance || 0), 0);
-  const totalAvailable = accounts.reduce((s, a) => s + (a.available || 0), 0);
-  const totalFrozen = accounts.reduce((s, a) => s + (a.frozen || 0), 0);
-  const totalPnl = positions.reduce((s, p) => s + (p.pnl || 0), 0);
+  const accountList = Object.values(accounts);
+  const positionList = Object.values(positions);
+  const activeOrders = Object.values(orders).filter((o: any) =>
+    ['待报', '已报', '部成', '撤单中'].includes(o.status)
+  );
+  const logList = logs.slice(0, 20);
+
+  const totalBalance = accountList.reduce((s, a) => s + (a.balance || 0), 0);
+  const totalAvailable = accountList.reduce((s, a) => s + (a.available || 0), 0);
+  const totalFrozen = accountList.reduce((s, a) => s + (a.frozen || 0), 0);
+  const totalPnl = positionList.reduce((s, p) => s + (p.pnl || 0), 0);
 
   const positionColumns = [
     {
@@ -124,11 +152,25 @@ export default function DashboardPage() {
     },
   ];
 
+  // 连接状态指示器
+  const ConnectionIndicator = () => (
+    <Tag
+      color={connectionState === 'connected' ? 'green' : connectionState === 'connecting' ? 'orange' : 'red'}
+      size="small"
+      style={{ marginLeft: 8 }}
+    >
+      {connectionState === 'connected' ? '实时连接' : connectionState === 'connecting' ? '连接中' : '已断开'}
+    </Tag>
+  );
+
   return (
     <div>
-      <Title heading={4} style={{ marginBottom: 24 }}>总览</Title>
+      <Title heading={4} style={{ marginBottom: 24 }}>
+        总览
+        <ConnectionIndicator />
+      </Title>
 
-      {loading && accounts.length === 0 ? (
+      {loading && accountList.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60 }}>
           <Spin size="large" />
         </div>
@@ -212,7 +254,7 @@ export default function DashboardPage() {
           >
             <Table
               columns={positionColumns}
-              dataSource={positions}
+              dataSource={positionList}
               pagination={false}
               size="small"
               empty={<Empty description="暂无持仓" />}
@@ -227,7 +269,7 @@ export default function DashboardPage() {
           >
             <Table
               columns={logColumns}
-              dataSource={logs}
+              dataSource={logList}
               pagination={false}
               size="small"
               empty={<Empty description="暂无日志" />}

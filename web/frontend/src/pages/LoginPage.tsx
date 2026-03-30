@@ -7,18 +7,21 @@ import { useAuthStore } from '../stores/authStore';
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[Login] Submitting form, remember:', remember);
     setLoading(true);
     try {
       await login(username, password, remember);
-      navigate('/');
+      console.log('[Login] Login success, navigating to /');
+      navigate('/', { replace: true });
     } catch (err: any) {
+      console.error('[Login] Login failed:', err);
       Toast.error(err.response?.data?.detail || '登录失败');
     } finally {
       setLoading(false);
@@ -54,7 +57,7 @@ export default function LoginPage() {
             onChange={setPassword}
             style={{ marginBottom: 8 }}
           />
-          <Checkbox checked={remember} onChange={(e) => setRemember(e.target.checked!)} style={{ marginBottom: 24 }}>
+          <Checkbox checked={remember} onChange={(checked) => setRemember(checked as boolean)} style={{ marginBottom: 24 }}>
             记住登录（7天）
           </Checkbox>
           <Button

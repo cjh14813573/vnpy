@@ -1,5 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+
 export function useWebSocket(handlers?: Record<string, (data: any) => void>) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -11,7 +13,7 @@ export function useWebSocket(handlers?: Record<string, (data: any) => void>) {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws?token=${token}`;
+    const wsUrl = `${WS_URL}?token=${token}`;
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
