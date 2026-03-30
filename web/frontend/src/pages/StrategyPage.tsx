@@ -23,6 +23,12 @@ export default function StrategyPage() {
     return user.role === 'admin';
   });
 
+  // 编辑参数状态
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingStrategy, setEditingStrategy] = useState<StrategyInstance | null>(null);
+  const [editParams, setEditParams] = useState<Record<string, any>>({});
+  const [editSetting, setEditSetting] = useState<Record<string, string>>({});
+
   const load = async () => {
     try {
       const [cls, inst] = await Promise.all([strategyApi.classes(), strategyApi.instances()]);
@@ -93,6 +99,59 @@ export default function StrategyPage() {
     }
   };
 
+  // 打开编辑参数对话框
+  const openEdit = async (instance: StrategyInstance) => {
+    setEditingStrategy(instance);
+    setEditOpen(true);
+
+    // 获取策略类的参数定义
+    try {
+      const res = await strategyApi.classParams(instance.class_name);
+      setEditParams(res.data);
+
+      // 使用当前参数值填充
+      const currentSettings: Record<string, string> = {};
+      Object.entries(res.data).forEach(([k, v]: [string, any]) => {
+        // 优先使用策略实例的参数，否则使用默认值
+        const currentValue = instance.parameters?.[k];
+        currentSettings[k] = String(currentValue ?? v.default ?? '');
+      });
+      setEditSetting(currentSettings);
+    } catch {
+      Toast.error('获取策略参数失败');
+    }
+  };
+
+  // 保存编辑的参数
+  const handleEditSave = async () => {
+    if (!editingStrategy) return;
+
+    try {
+      // 需要停止策略、修改参数、重新初始化
+      if (editingStrategy.trading) {
+        await strategyApi.stop(editingStrategy.strategy_name);
+      }
+      if (editingStrategy.inited) {
+        // 调用 edit API 修改参数
+        await strategyApi.edit(editingStrategy.strategy_name, {
+          setting: editSetting,
+        });
+        Toast.success('参数已更新，请重新初始化');
+      } else {
+        await strategyApi.edit(editingStrategy.strategy_name, {
+          setting: editSetting,
+        });
+        Toast.success('参数已更新');
+      }
+
+      setEditOpen(false);
+      setEditingStrategy(null);
+      load();
+    } catch (err: any) {
+      Toast.error(err.response?.data?.detail || '保存失败');
+    }
+  };
+
   const statusColor = (s: StrategyInstance) => s.trading ? 'green' : s.inited ? 'blue' : 'grey';
   const statusText = (s: StrategyInstance) => s.trading ? '运行中' : s.inited ? '已初始化' : '未初始化';
 
@@ -143,7 +202,7 @@ export default function StrategyPage() {
     },
     {
       title: '操作',
-      width: 320,
+      width: 360,
       render: (_: any, r: StrategyInstance) => (
         <Space>
           <Button
@@ -170,6 +229,13 @@ export default function StrategyPage() {
             disabled={r.lock?.locked}
           >
             停止
+          </Button>
+          <Button
+            size="small"
+            onClick={() => openEdit(r)}
+            disabled={r.lock?.locked || r.trading}
+          >
+            编辑参数
           </Button>
           <Button
             size="small"
@@ -241,6 +307,7 @@ export default function StrategyPage() {
         />
       </Card>
 
+      {/* 添加策略对话框 */}
       <Modal
         title="添加策略"
         visible={addOpen}
@@ -293,6 +360,62 @@ export default function StrategyPage() {
             style={{ marginTop: 16, borderRadius: 10 }}
           >
             添加
+          </Button>
+        </div>
+      </Modal>
+
+      {/* 编辑参数对话框 */}
+      <Modal
+        title={`编辑参数 - ${editingStrategy?.strategy_name || ''}`}
+        visible={editOpen}
+        onCancel={() => setEditOpen(false)}
+        footer={null}
+        style={{ borderRadius: 12 }}
+      >
+        <div>
+          <Text type="tertiary" style={{ display: 'block', marginBottom: 16 }}>
+            策略类: {editingStrategy?.class_name} | 合约: {editingStrategy?.vt_symbol}
+          </Text>
+
+          {editingStrategy?.trading && (
+            <Tag color="orange" style={{ marginBottom: 16, display: 'block' }}>
+              策略正在运行中，修改参数需要先停止策略
+            </Tag>
+          )}
+
+          {Object.entries(editParams).length > 0 ? (
+            <>
+              <Text strong style={{ display: 'block', marginBottom: 8 }}>策略参数</Text>
+              {Object.entries(editParams).map(([key, val]: [string, any]) => (
+                <div key={key}>
+                  <label style={{ marginBottom: 4, display: 'block' }}>
+                    {key}
+                    <Text type="tertiary" size="small" style={{ marginLeft: 8 }}>
+                      ({val.type || 'str'})
+                    </Text>
+                  </label>
+                  <Input
+                    value={editSetting[key] ?? ''}
+                    onChange={(v) => setEditSetting({ ...editSetting, [key]: v })}
+                    suffix={`默认: ${val.default ?? '-'}`}
+                    style={{ marginBottom: 12 }}
+                  />
+                </div>
+              ))}
+            </>
+          ) : (
+            <Text type="tertiary">该策略类没有可配置参数</Text>
+          )}
+
+          <Button
+            theme="solid"
+            block
+            size="large"
+            onClick={handleEditSave}
+            disabled={editingStrategy?.trading}
+            style={{ marginTop: 16, borderRadius: 10 }}
+          >
+            保存参数
           </Button>
         </div>
       </Modal>
