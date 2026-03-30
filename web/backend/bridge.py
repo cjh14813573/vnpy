@@ -101,15 +101,21 @@ class VnpyBridge:
         """注册 WebSocket 推送回调"""
         self._ws_callbacks.append(callback)
 
-    def _emit_ws(self, topic: str, data: dict):
-        """触发 WebSocket 推送（非阻塞）"""
+    def _emit_ws(self, topic: str, data: dict, symbol: str = None):
+        """触发 WebSocket 推送（非阻塞，带订阅过滤）
+
+        Args:
+            topic: 事件类型
+            data: 事件数据
+            symbol: 合约代码（用于订阅过滤）
+        """
         for cb in self._ws_callbacks:
             try:
                 # 回调可能是协程函数
                 if asyncio.iscoroutinefunction(cb):
-                    asyncio.run_coroutine_threadsafe(cb(topic, data), asyncio.get_event_loop())
+                    asyncio.run_coroutine_threadsafe(cb(topic, data, symbol), asyncio.get_event_loop())
                 else:
-                    cb(topic, data)
+                    cb(topic, data, symbol)
             except Exception:
                 pass
 
@@ -117,27 +123,43 @@ class VnpyBridge:
 
     def _on_tick(self, event: Event):
         tick: TickData = event.data
-        self._emit_ws("tick", self._tick_to_dict(tick))
+        tick_dict = self._tick_to_dict(tick)
+        # tick 按 vt_symbol 过滤推送
+        vt_symbol = tick_dict.get("vt_symbol")
+        self._emit_ws("tick", tick_dict, vt_symbol)
 
     def _on_order(self, event: Event):
         order: OrderData = event.data
-        self._emit_ws("order", self._order_to_dict(order))
+        order_dict = self._order_to_dict(order)
+        # order 按 vt_symbol 过滤推送
+        vt_symbol = order_dict.get("vt_symbol")
+        self._emit_ws("order", order_dict, vt_symbol)
 
     def _on_trade(self, event: Event):
         trade: TradeData = event.data
-        self._emit_ws("trade", self._trade_to_dict(trade))
+        trade_dict = self._trade_to_dict(trade)
+        # trade 按 vt_symbol 过滤推送
+        vt_symbol = trade_dict.get("vt_symbol")
+        self._emit_ws("trade", trade_dict, vt_symbol)
 
     def _on_position(self, event: Event):
         pos: PositionData = event.data
-        self._emit_ws("position", self._position_to_dict(pos))
+        pos_dict = self._position_to_dict(pos)
+        # position 按 vt_symbol 过滤推送
+        vt_symbol = pos_dict.get("vt_symbol")
+        self._emit_ws("position", pos_dict, vt_symbol)
 
     def _on_account(self, event: Event):
         account: AccountData = event.data
-        self._emit_ws("account", self._account_to_dict(account))
+        account_dict = self._account_to_dict(account)
+        # account 全量推送（不属于特定合约）
+        self._emit_ws("account", account_dict, None)
 
     def _on_contract(self, event: Event):
         contract: ContractData = event.data
-        self._emit_ws("contract", self._contract_to_dict(contract))
+        contract_dict = self._contract_to_dict(contract)
+        # contract 全量推送（新合约通知）
+        self._emit_ws("contract", contract_dict, None)
 
     def _on_log(self, event: Event):
         log: LogData = event.data
@@ -150,7 +172,8 @@ class VnpyBridge:
         self._log_history.append(log_dict)
         if len(self._log_history) > self._max_log_history:
             self._log_history = self._log_history[-self._max_log_history:]
-        self._emit_ws("log", log_dict)
+        # log 全量推送
+        self._emit_ws("log", log_dict, None)
 
     # ============ 数据转换 ============
 
