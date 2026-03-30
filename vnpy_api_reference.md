@@ -482,4 +482,222 @@ DAILY = "d"
 WEEKLY = "w"
 ```
 
+### Exchange (主要交易所)
+```
+# 中国
+SHFE = "SHFE"      # 上期所
+DCE = "DCE"        # 大商所
+CZCE = "CZCE"      # 郑商所
+CFFEX = "CFFEX"    # 中金所
+INE = "INE"        # 上期能源
+GFEX = "GFEX"      # 广期所
+SSE = "SSE"        # 上交所
+SZSE = "SZSE"      # 深交所
+BSE = "BSE"        # 北交所
+SHHK = "SHHK"      # 沪港通
+SZHK = "SZHK"      # 深港通
+
+# 国际
+SMART = "SMART"    # IB 智能路由
+NYMEX = "NYMEX"    # 纽约商品交易所
+GLOBEX = "GLOBEX"  # CME 电子盘
+IDEALPRO = "IDEALPRO"  # IB 外汇
+SEHK = "SEHK"      # 港交所
+HKFE = "HKFE"      # 香港期货交易所
+```
+
+## 17. 期权相关枚举 (OptionMaster)
+
+### OptionType
+```
+CALL = "看涨期权"
+PUT = "看跌期权"
+```
+
+### GreeksData
+```
+symbol, exchange, option_type, option_strike,
+delta, gamma, theta, vega, rho, implied_volatility,
+theo_price, underlying_price, timestamp
+```
+
+## 18. 异常类型
+
+```python
+class VnpyException(Exception): ...           # 基础异常
+class SettingFileException(VnpyException): ... # 配置文件错误
+class GatewayException(VnpyException): ...     # 网关错误
+class OrderException(VnpyException): ...       # 下单错误
+class BacktestException(VnpyException): ...    # 回测错误
+```
+
+## 19. OptionMaster 引擎 (期权交易)
+
+```python
+# 期权定价
+get_theo_price(vt_symbol) -> float                    # 获取理论价格
+get_implied_volatility(vt_symbol) -> float           # 获取隐含波动率
+get_greeks(vt_symbol) -> GreeksData                  # 获取希腊字母
+
+# 波动率曲面
+get_volatility_surface(underlying_symbol) -> DataFrame  # 波动率曲面数据
+calibrate_volatility_surface(underlying_symbol) -> None # 校准波动率曲面
+
+# 期权链
+get_option_chain(underlying_symbol, expiry) -> list[ContractData]  # 获取期权链
+get_atm_option(underlying_symbol, expiry) -> ContractData          # 获取平值期权
+
+# 组合策略（跨式、宽跨式、价差等）
+add_option_strategy(name, legs: list[dict]) -> None    # 添加期权组合
+remove_option_strategy(name) -> None                   # 删除组合
+get_option_strategy(name) -> dict                      # 获取组合详情
+get_all_option_strategies() -> list[dict]              # 获取所有组合
+start_option_strategy(name) -> None                    # 启动组合
+stop_option_strategy(name) -> None                     # 停止组合
+
+# 自动对冲
+calculate_hedge_position(vt_symbol, target_delta) -> dict  # 计算对冲仓位
+execute_delta_hedge(vt_symbol) -> None                     # 执行Delta对冲
+
+# 波动率交易
+get_volatility_cone(underlying_symbol) -> dict         # 波动率锥
+get_historical_volatility(underlying_symbol, window) -> float  # 历史波动率
+```
+
+## 20. PortfolioManager 引擎 (投资组合管理)
+
+```python
+# 组合结构
+add_portfolio(name, setting: dict) -> None             # 添加组合
+remove_portfolio(name) -> bool                         # 删除组合
+get_portfolio(name) -> PortfolioData                   # 获取组合详情
+get_all_portfolios() -> list[PortfolioData]            # 获取所有组合
+
+# 组合盈亏
+get_portfolio_pnl(name) -> dict                        # 组合盈亏
+get_portfolio_returns(name, period) -> list[float]     # 组合收益率
+get_portfolio_drawdown(name) -> dict                   # 最大回撤
+
+# 风险指标
+calculate_sharpe_ratio(name, risk_free_rate) -> float  # 夏普比率
+calculate_sortino_ratio(name, risk_free_rate) -> float # 索提诺比率
+calculate_calmar_ratio(name) -> float                  # 卡玛比率
+calculate_var(name, confidence_level) -> float         # VaR
+
+# 资产配置
+rebalance_portfolio(name, target_weights: dict) -> None  # 再平衡
+get_portfolio_weights(name) -> dict                     # 当前权重
+```
+
+## 21. SpreadTrading 引擎 (价差交易)
+
+```python
+# 价差定义
+add_spread(name, legs: list[dict], price_formula: str) -> None  # 添加价差
+remove_spread(name) -> bool                                     # 删除价差
+get_spread(name) -> SpreadData                                  # 获取价差详情
+get_all_spreads() -> list[SpreadData]                           # 获取所有价差
+
+# 价差行情
+get_spread_tick(name) -> TickData                               # 获取价差Tick
+get_spread_bar(name, interval) -> list[BarData]                 # 获取价差K线
+
+# 价差下单
+send_spread_order(name, direction, price, volume, stop=False) -> str  # 价差下单
+cancel_spread_order(orderid) -> None                                  # 撤单
+
+# 价差策略
+add_spread_strategy(class_name, strategy_name, spread_name, setting) -> None
+start_spread_strategy(name) -> None
+stop_spread_strategy(name) -> None
+```
+
+## 22. 修正后的数据对象字段
+
+### TickData (完整版)
+```python
+symbol: str                    # 代码
+exchange: Exchange            # 交易所
+datetime: datetime            # 时间戳
+name: str                     # 名称
+volume: float                 # 成交量
+turnover: float               # 成交额
+open_interest: float          # 持仓量
+
+# 价格
+last_price: float             # 最新价
+last_volume: float            # 最新成交量
+limit_up: float               # 涨停价
+limit_down: float             # 跌停价
+open_price: float             # 开盘价
+high_price: float             # 最高价
+low_price: float              # 最低价
+pre_close: float              # 昨收价
+
+# 五档买盘
+bid_price_1: float
+bid_price_2: float
+bid_price_3: float
+bid_price_4: float
+bid_price_5: float
+bid_volume_1: float
+bid_volume_2: float
+bid_volume_3: float
+bid_volume_4: float
+bid_volume_5: float
+
+# 五档卖盘
+ask_price_1: float
+ask_price_2: float
+ask_price_3: float
+ask_price_4: float
+ask_price_5: float
+ask_volume_1: float
+ask_volume_2: float
+ask_volume_3: float
+ask_volume_4: float
+ask_volume_5: float
+
+# 附加
+localtime: datetime           # 本地时间
+gateway_name: str             # 网关名
+```
+
+### AccountData (完整版)
+```python
+accountid: str                # 账户ID
+balance: float                # 总资金
+available: float              # 可用资金
+frozen: float                 # 冻结资金
+commission: float             # 今日手续费
+margin: float                 # 保证金占用
+close_profit: float           # 平仓盈亏
+position_profit: float        # 持仓盈亏
+exchange_margin: float        # 交易所保证金
+delivery_margin: float        # 交割保证金
+risk_ratio: float             # 风险度
+gateway_name: str             # 网关名
+```
+
+### PositionData (完整版)
+```python
+symbol: str                   # 代码
+exchange: Exchange           # 交易所
+direction: Direction         # 持仓方向
+volume: float                # 持仓量
+frozen: float                # 冻结量
+price: float                 # 开仓均价
+pnl: float                   # 盈亏
+yd_volume: float             # 昨仓量
+vd_volume: float             # 今仓量 (volume - yd_volume)
+
+# 扩展字段
+cost_price: float            # 成本价
+settlement_price: float      # 结算价
+pre_settlement_price: float  # 昨结算价
+unrealized_pnl: float        # 未实现盈亏
+realized_pnl: float          # 已实现盈亏
+gateway_name: str            # 网关名
+```
+
 ---
