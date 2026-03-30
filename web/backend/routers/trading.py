@@ -1,9 +1,11 @@
 """交易下单路由"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
 from auth import get_current_user
 from bridge import bridge
-from schemas import OrderSendRequest, OrderCancelRequest
+from schemas import OrderSendRequest, OrderCancelRequest, PaginationParams, FilterParams, PaginatedListResponse
+from utils import filter_and_paginate
 
 router = APIRouter(prefix="/api/trading", tags=["trading"], dependencies=[Depends(get_current_user)])
 
@@ -28,31 +30,131 @@ async def cancel_order(req: OrderCancelRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/orders")
-async def get_orders():
-    """获取所有委托"""
-    return bridge.get_all_orders()
+@router.get("/orders", response_model=PaginatedListResponse)
+async def get_orders(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=100, description="每页数量"),
+    sort_by: Optional[str] = Query(None, description="排序字段"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="排序方向"),
+    keyword: Optional[str] = Query(None, description="关键词搜索"),
+    exchange: Optional[str] = Query(None, description="交易所过滤"),
+    status: Optional[str] = Query(None, description="状态过滤"),
+):
+    """获取所有委托（支持分页和过滤）"""
+    pagination_params = PaginationParams(
+        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
+    )
+    filter_params = FilterParams(
+        keyword=keyword, exchange=exchange, status=status
+    )
+
+    orders = bridge.get_all_orders()
+    return filter_and_paginate(
+        orders,
+        pagination_params,
+        filter_params,
+        keyword_fields=["symbol", "vt_orderid", "reference"]
+    )
 
 
-@router.get("/orders/active")
-async def get_active_orders():
-    """获取活跃委托"""
-    return bridge.get_all_active_orders()
+@router.get("/orders/active", response_model=PaginatedListResponse)
+async def get_active_orders(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=100, description="每页数量"),
+    sort_by: Optional[str] = Query(None, description="排序字段"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="排序方向"),
+    keyword: Optional[str] = Query(None, description="关键词搜索"),
+    exchange: Optional[str] = Query(None, description="交易所过滤"),
+):
+    """获取活跃委托（支持分页和过滤）"""
+    pagination_params = PaginationParams(
+        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
+    )
+    filter_params = FilterParams(
+        keyword=keyword, exchange=exchange
+    )
+
+    orders = bridge.get_all_active_orders()
+    return filter_and_paginate(
+        orders,
+        pagination_params,
+        filter_params,
+        keyword_fields=["symbol", "vt_orderid", "reference"]
+    )
 
 
-@router.get("/trades")
-async def get_trades():
-    """获取所有成交"""
-    return bridge.get_all_trades()
+@router.get("/trades", response_model=PaginatedListResponse)
+async def get_trades(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=100, description="每页数量"),
+    sort_by: Optional[str] = Query(None, description="排序字段"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="排序方向"),
+    keyword: Optional[str] = Query(None, description="关键词搜索"),
+    exchange: Optional[str] = Query(None, description="交易所过滤"),
+):
+    """获取所有成交（支持分页和过滤）"""
+    pagination_params = PaginationParams(
+        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
+    )
+    filter_params = FilterParams(
+        keyword=keyword, exchange=exchange
+    )
+
+    trades = bridge.get_all_trades()
+    return filter_and_paginate(
+        trades,
+        pagination_params,
+        filter_params,
+        keyword_fields=["symbol", "vt_tradeid", "vt_orderid"]
+    )
 
 
-@router.get("/positions")
-async def get_positions():
-    """获取所有持仓"""
-    return bridge.get_all_positions()
+@router.get("/positions", response_model=PaginatedListResponse)
+async def get_positions(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=100, description="每页数量"),
+    sort_by: Optional[str] = Query(None, description="排序字段"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="排序方向"),
+    keyword: Optional[str] = Query(None, description="关键词搜索"),
+    exchange: Optional[str] = Query(None, description="交易所过滤"),
+):
+    """获取所有持仓（支持分页和过滤）"""
+    pagination_params = PaginationParams(
+        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
+    )
+    filter_params = FilterParams(
+        keyword=keyword, exchange=exchange
+    )
+
+    positions = bridge.get_all_positions()
+    return filter_and_paginate(
+        positions,
+        pagination_params,
+        filter_params,
+        keyword_fields=["symbol", "vt_symbol"]
+    )
 
 
-@router.get("/accounts")
-async def get_accounts():
-    """获取所有账户"""
-    return bridge.get_all_accounts()
+@router.get("/accounts", response_model=PaginatedListResponse)
+async def get_accounts(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=100, description="每页数量"),
+    sort_by: Optional[str] = Query(None, description="排序字段"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="排序方向"),
+    keyword: Optional[str] = Query(None, description="关键词搜索"),
+):
+    """获取所有账户（支持分页和过滤）"""
+    pagination_params = PaginationParams(
+        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order
+    )
+    filter_params = FilterParams(
+        keyword=keyword
+    )
+
+    accounts = bridge.get_all_accounts()
+    return filter_and_paginate(
+        accounts,
+        pagination_params,
+        filter_params,
+        keyword_fields=["gateway_name", "accountid"]
+    )

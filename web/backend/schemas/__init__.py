@@ -1,8 +1,41 @@
 """Pydantic 数据模型"""
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Any, Optional
 from enum import Enum
+
+
+# ============ 分页 ============
+
+class PaginationParams(BaseModel):
+    """分页参数"""
+    page: int = Field(default=1, ge=1, description="页码，从1开始")
+    page_size: int = Field(default=50, ge=1, le=100, description="每页数量")
+    sort_by: Optional[str] = Field(default=None, description="排序字段")
+    sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="排序方向: asc/desc")
+
+
+class PaginationResponse(BaseModel):
+    """分页响应"""
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
+class FilterParams(BaseModel):
+    """过滤参数"""
+    keyword: Optional[str] = Field(default=None, description="关键词搜索")
+    exchange: Optional[str] = Field(default=None, description="交易所过滤")
+    status: Optional[str] = Field(default=None, description="状态过滤")
+    start_date: Optional[str] = Field(default=None, description="开始日期")
+    end_date: Optional[str] = Field(default=None, description="结束日期")
+
+
+class PaginatedListResponse(BaseModel):
+    """通用分页列表响应"""
+    data: list[Any]
+    pagination: PaginationResponse
 
 
 # ============ 枚举 ============
