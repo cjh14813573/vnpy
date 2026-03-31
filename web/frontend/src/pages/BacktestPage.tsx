@@ -11,6 +11,7 @@ import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import { backtestApi, marketApi } from '../api';
 import KLineChart, { type KLineData, type TradeMarker } from '../components/KLineChart';
+import CandleChart, { type CandleData } from '../components/CandleChart';
 import { useRealtimeStore } from '../stores/realtimeStore';
 import { useWebSocket } from '../services/websocket';
 import type { BacktestTask, BacktestTaskStatus } from '../api/types';
@@ -66,10 +67,12 @@ export default function BacktestPage() {
 
   // K线数据状态
   const [candleData, setCandleData] = useState<KLineData[]>([]);
+  const [candleChartData, setCandleChartData] = useState<CandleData[]>([]);
   const [tradeMarkers, setTradeMarkers] = useState<TradeMarker[]>([]);
   const [showCandleModal, setShowCandleModal] = useState(false);
   const [candleLoading, setCandleLoading] = useState(false);
   const [candleSymbol, setCandleSymbol] = useState('');
+  const [chartType, setChartType] = useState<'echarts' | 'lightweight'>('lightweight');
 
   // 加载策略类和任务列表
   useEffect(() => {
@@ -245,6 +248,14 @@ export default function BacktestPage() {
       }));
 
       setCandleData(klineData);
+      setCandleChartData(bars.map((bar: any) => ({
+        time: bar.datetime || bar.date,
+        open: bar.open_price || bar.open,
+        high: bar.high_price || bar.high,
+        low: bar.low_price || bar.low,
+        close: bar.close_price || bar.close,
+        volume: bar.volume,
+      })));
 
       // 获取交易记录作为标记
       if (task.result?.trades) {
@@ -264,6 +275,14 @@ export default function BacktestPage() {
       // 使用模拟数据作为后备
       const mockCandles = generateMockCandles(task.vt_symbol || 'rb2410.SHFE');
       setCandleData(mockCandles);
+      setCandleChartData(mockCandles.map(d => ({
+        time: d.time,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close,
+        volume: d.volume,
+      })));
       setTradeMarkers([]);
     } finally {
       setCandleLoading(false);
@@ -824,7 +843,21 @@ export default function BacktestPage() {
 
       {/* K线图表Modal */}
       <Modal
-        title={`K线图表 - ${candleSymbol}`}
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 32 }}>
+            <span>K线图表 - {candleSymbol}</span>
+            <Select
+              value={chartType}
+              onChange={(v) => setChartType(v as 'echarts' | 'lightweight')}
+              style={{ width: 140 }}
+              size="small"
+              optionList={[
+                { value: 'lightweight', label: 'Lightweight' },
+                { value: 'echarts', label: 'ECharts' },
+              ]}
+            />
+          </div>
+        }
         visible={showCandleModal}
         onCancel={() => setShowCandleModal(false)}
         footer={null}
@@ -835,11 +868,20 @@ export default function BacktestPage() {
           <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
         ) : (
           <div>
-            <KLineChart
-              data={candleData}
-              trades={tradeMarkers}
-              height={500}
-            />
+            {chartType === 'lightweight' ? (
+              <CandleChart
+                data={candleChartData}
+                height={500}
+                showMA={true}
+                showVolume={true}
+              />
+            ) : (
+              <KLineChart
+                data={candleData}
+                trades={tradeMarkers}
+                height={500}
+              />
+            )}
             <div style={{ marginTop: 16, display: 'flex', gap: 24, justifyContent: 'center' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ width: 12, height: 12, background: '#f5222d', borderRadius: 2 }}></span>
@@ -849,14 +891,18 @@ export default function BacktestPage() {
                 <span style={{ width: 12, height: 12, background: '#52c41a', borderRadius: 2 }}></span>
                 跌
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: '#f5222d' }}>↑</span>
-                买开/买平
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: '#52c41a' }}>↓</span>
-                卖开/卖平
-              </span>
+              {chartType === 'echarts' && (
+                <>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: '#f5222d' }}>↑</span>
+                    买开/买平
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: '#52c41a' }}>↓</span>
+                    卖开/卖平
+                  </span>
+                </>
+              )}
             </div>
           </div>
         )}
