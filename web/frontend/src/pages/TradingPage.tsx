@@ -6,16 +6,27 @@ import { useRealtimeStore } from '../stores/realtimeStore';
 import { useWebSocket, wsService } from '../services/websocket';
 import type { Contract } from '../api/types';
 
+interface Account {
+  gateway_name: string;
+  accountid: string;
+  vt_accountid: string;
+  account_type: 'real' | 'paper';
+  balance: number;
+  frozen: number;
+  available: number;
+}
+
 export default function TradingPage() {
   const { orders, trades, positions, ticks, connectionState } = useRealtimeStore();
-  const [, setAccounts] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
 
   const [form, setForm] = useState({
     symbol: '', exchange: 'SHFE', direction: '多', type: '限价',
-    volume: '1', price: '', offset: '开', gateway_name: 'CTP',
+    volume: '1', price: '', offset: '开', gateway_name: 'CTP', account_type: 'real' as 'real' | 'paper',
   });
 
   // 初始化 WebSocket
@@ -120,7 +131,19 @@ export default function TradingPage() {
         });
         useRealtimeStore.getState().setPositions(posMap);
 
-        setAccounts(a.data.data || a.data || []);
+        const accountList = a.data.data || a.data || [];
+        setAccounts(accountList);
+
+        // 默认选择第一个实盘账户
+        const defaultAccount = accountList.find((acc: Account) => acc.account_type === 'real') || accountList[0];
+        if (defaultAccount) {
+          setSelectedAccount(defaultAccount);
+          setForm(prev => ({
+            ...prev,
+            gateway_name: defaultAccount.gateway_name,
+            account_type: defaultAccount.account_type,
+          }));
+        }
 
         // 订阅所有持仓合约的行情
         const symbols = Object.keys(posMap);
@@ -141,7 +164,13 @@ export default function TradingPage() {
 
   const handleSendOrder = async () => {
     try {
-      const res = await tradingApi.sendOrder({ ...form, volume: parseFloat(form.volume), price: parseFloat(form.price) });
+      const orderData = {
+        ...form,
+        volume: parseFloat(form.volume),
+        price: parseFloat(form.price),
+        account_type: selectedAccount?.account_type || 'real',
+      };
+      const res = await tradingApi.sendOrder(orderData);
       Toast.success(`下单成功: ${res.data.vt_orderid}`);
     } catch (err: any) {
       Toast.error(err.response?.data?.detail || '下单失败');
@@ -194,6 +223,21 @@ export default function TradingPage() {
 
   const labelStyle = { marginBottom: 12, display: 'block' };
 
+  // 选择账户
+  const handleSelectAccount = (account: Account) => {
+    setSelectedAccount(account);
+    setForm(prev => ({
+      ...prev,
+      gateway_name: account.gateway_name,
+      account_type: account.account_type,
+    }));
+  };
+
+  // 计算总资产
+  const totalBalance = useMemo(() => {
+    return accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+  }, [accounts]);
+
   // 连接状态指示器
   const ConnectionIndicator = () => (
     <Tag
@@ -211,6 +255,80 @@ export default function TradingPage() {
         交易面板
         <ConnectionIndicator />
       </Typography.Title>
+
+      {/* 账户卡片区域 */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        {accounts.map((account) => (
+          <Col span={6} key={account.vt_accountid}>
+            <div onClick={() => handleSelectAccount(account)} style={{ cursor: 'pointer' }}>
+              <Card
+                bodyStyle={{ padding: 16 }}
+                style={{
+                  borderRadius: 12,
+                  border: selectedAccount?.vt_accountid === account.vt_accountid
+                    ? '2px solid var(--semi-color-primary)'
+                    : '1px solid var(--semi-color-border)',
+                  background: account.account_type === 'paper'
+                    ? 'rgba(100, 100, 255, 0.05)'
+                    : 'var(--semi-color-bg-0)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div>
+                    <Typography.Text strong>{account.gateway_name}</Typography.Text>
+                    {account.account_type === 'paper' && (
+                      <Tag color="blue" style={{ marginLeft: 8 }}>模拟</Tag>
+                    )}
+                  </div>
+                  {selectedAccount?.vt_accountid === account.vt_accountid && (
+                    <Tag color="blue" size="small">当前</Tag>
+                  )}
+                </div>
+              <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>
+                账户: {account.accountid}
+              </Typography.Text>
+              <div style={{ fontSize: 24, fontWeight: 600 }}>
+                ¥{(account.balance || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+              </div>
+              <Row style={{ marginTop: 12 }} gutter={8}>
+                <Col span={12}>
+                  <Typography.Text type="tertiary" size="small">可用</Typography.Text>
+                  <br />
+                  <Typography.Text strong>¥{(account.available || 0).toFixed(2)}</Typography.Text>
+                </Col>
+                <Col span={12}>
+                  <Typography.Text type="tertiary" size="small">冻结</Typography.Text>
+                  <br />
+                  <Typography.Text strong>¥{(account.frozen || 0).toFixed(2)}</Typography.Text>
+                </Col>
+              </Row>
+              </Card>
+            </div>
+          </Col>
+        ))}
+
+        {/* 总资产卡片 */}
+        <Col span={6}>
+          <Card
+            bodyStyle={{ padding: 16 }}
+            style={{
+              borderRadius: 12,
+              background: 'var(--semi-color-primary-light-default)',
+            }}
+          >
+            <Typography.Text type="tertiary" style={{ display: 'block', marginBottom: 8 }}>
+              总资产 (实盘+模拟)
+            </Typography.Text>
+            <div style={{ fontSize: 28, fontWeight: 700 }}>
+              ¥{totalBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+            </div>
+            <Typography.Text type="tertiary" size="small" style={{ marginTop: 8, display: 'block' }}>
+              共 {accounts.length} 个账户
+            </Typography.Text>
+          </Card>
+        </Col>
+      </Row>
+
       <Row gutter={16}>
         <Col span={8}>
           <Card title="下单" style={{ borderRadius: 12 }}>
@@ -309,10 +427,12 @@ export default function TradingPage() {
               block
               size="large"
               onClick={handleSendOrder}
-              disabled={!selectedContract}
+              disabled={!selectedContract || !selectedAccount}
               style={{ borderRadius: 10, marginTop: 16 }}
             >
-              {selectedContract ? (form.direction === '多' ? '买入 ' : '卖出 ') + selectedContract.symbol : '请先选择合约'}
+              {selectedContract
+                ? `${form.direction === '多' ? '买入' : '卖出'} ${selectedContract.symbol} (${selectedAccount?.account_type === 'paper' ? '模拟' : selectedAccount?.gateway_name || ''})`
+                : '请先选择合约'}
             </Button>
           </Card>
         </Col>

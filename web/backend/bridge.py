@@ -451,11 +451,48 @@ class VnpyBridge:
     def get_all_trades(self) -> list[dict]:
         return [self._trade_to_dict(t) for t in self.main_engine.get_all_trades()]
 
-    def get_all_positions(self) -> list[dict]:
-        return [self._position_to_dict(p) for p in self.main_engine.get_all_positions()]
+    def get_all_positions(self, include_paper: bool = True) -> list[dict]:
+        """获取所有持仓（实盘+模拟盘）"""
+        positions = [self._position_to_dict(p) for p in self.main_engine.get_all_positions()]
+
+        # 添加模拟盘持仓
+        if include_paper:
+            paper_positions = self.get_paper_positions()
+            for pos in paper_positions:
+                pos["is_paper"] = True  # 标记为模拟盘持仓
+                positions.append(pos)
+
+        return positions
 
     def get_all_accounts(self) -> list[dict]:
-        return [self._account_to_dict(a) for a in self.main_engine.get_all_accounts()]
+        """获取所有账户（实盘+模拟盘）"""
+        accounts = []
+
+        # 实盘账户
+        for account in self.main_engine.get_all_accounts():
+            account_dict = self._account_to_dict(account)
+            account_dict["account_type"] = "real"
+            accounts.append(account_dict)
+
+        # 模拟盘账户
+        paper = self._get_paper_engine()
+        if paper is not None:
+            paper_account = {
+                "gateway_name": "PAPER",
+                "accountid": "SIM001",
+                "vt_accountid": "PAPER.SIM001",
+                "account_type": "paper",
+                "balance": getattr(paper, "balance", 1000000),
+                "frozen": getattr(paper, "frozen", 0),
+                "available": getattr(paper, "available", 1000000),
+                "commission": getattr(paper, "commission", 0),
+                "margin": getattr(paper, "margin", 0),
+                "close_profit": getattr(paper, "close_profit", 0),
+                "holding_profit": getattr(paper, "holding_profit", 0),
+            }
+            accounts.append(paper_account)
+
+        return accounts
 
     def cancel_all_orders(self) -> int:
         """取消所有活动委托，返回取消数量"""
@@ -1131,6 +1168,9 @@ class DualThrustStrategy(CtaTemplate):
                 "frozen": pos.get("frozen", 0),
                 "price": pos.get("price", 0),
                 "pnl": paper.calculate_pnl(vt_symbol),
+                "account_type": "paper",
+                "gateway_name": "PAPER",
+                "direction": "多" if pos.get("volume", 0) > 0 else "空" if pos.get("volume", 0) < 0 else "无",
             })
         return positions
 
