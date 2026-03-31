@@ -1,8 +1,11 @@
 """算法交易路由"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional
+from io import StringIO
+import csv
+import json
 from auth import get_current_user
 from bridge import bridge
 
@@ -107,3 +110,81 @@ async def resume_algo(algo_name: str):
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/batch-import")
+async def batch_import_algos(file: UploadFile = File(...)):
+    """批量导入算法（CSV格式）"""
+    try:
+        # 读取CSV内容
+        content = await file.read()
+        content_str = content.decode('utf-8')
+
+        # 解析CSV
+        csv_reader = csv.DictReader(StringIO(content_str))
+        rows = list(csv_reader)
+
+        if not rows:
+            raise HTTPException(status_code=400, detail="CSV文件为空或格式错误")
+
+        results = {
+            "total": len(rows),
+            "success": 0,
+            "failed": 0,
+            "errors": [],
+            "created": []
+        }
+
+        for idx, row in enumerate(rows, 1):
+            try:
+                # 解析设置（JSON字符串）
+                setting = {}
+                if row.get('params'):
+                    try:
+                        setting = json.loads(row['params'])
+                    except json.JSONDecodeError:
+                        pass
+
+                # 启动算法
+                algo_name = bridge.start_algo(
+                    template_name=row['template_name'],
+                    vt_symbol=f"{row['symbol']}.{row['exchange']}",
+                    direction=row['direction'],
+                    offset=row['offset'],
+                    price=float(row['price']),
+                    volume=float(row['volume']),
+                    setting=setting,
+                )
+
+                results["success"] += 1
+                results["created"].append({
+                    "row": idx,
+                    "algo_name": algo_name,
+                    "vt_symbol": f"{row['symbol']}.{row['exchange']}"
+                })
+
+            except Exception as e:
+                results["failed"] += 1
+                results["errors"].append({
+                    "row": idx,
+                    "data": row,
+                    "error": str(e)
+                })
+
+        return results
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"批量导入失败: {str(e)}")
+
+
+@router.get("/batch-template")
+async def get_batch_template():
+    """获取批量导入CSV模板"""
+    template = """template_name,symbol,exchange,direction,offset,price,volume,params
+TWAP,rb2410,SHFE,多,开,3500,10,"{\"interval\":60,\"interval_num\":10}"
+TWAP,cu2410,SHFE,空,开,68000,5,"{\"interval\":30,\"interval_num\":5}"
+SNIPER,rb2410,SHFE,多,平,3510,10,"{\"trigger_price\":3510}"
+"""
+    return {"template": template}

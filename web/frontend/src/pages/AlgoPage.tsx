@@ -3,7 +3,7 @@ import {
   Typography, Card, Button, Table, Tag, Row, Col, Modal, Input, Select, Toast, Space,
   Progress
 } from '@douyinfe/semi-ui';
-import { IconPlay, IconPause, IconStop, IconPlus } from '@douyinfe/semi-icons';
+import { IconPlay, IconPause, IconStop, IconPlus, IconUpload, IconDownload } from '@douyinfe/semi-icons';
 import { algoApi } from '../api';
 
 const { Title, Text } = Typography;
@@ -44,6 +44,12 @@ export default function AlgoPage() {
     volume: '',
     setting: {} as Record<string, string>,
   });
+
+  // 批量导入状态
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchFile, setBatchFile] = useState<File | null>(null);
+  const [batchPreview, setBatchPreview] = useState<any[]>([]);
+  const [batchLoading, setBatchLoading] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -141,6 +147,74 @@ export default function AlgoPage() {
     }
   };
 
+  // 下载批量导入模板
+  const downloadTemplate = async () => {
+    try {
+      const res = await algoApi.batchTemplate();
+      const blob = new Blob([res.data.template], { type: 'text/csv' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'algo_batch_template.csv';
+      link.click();
+      Toast.success('模板已下载');
+    } catch (err: any) {
+      Toast.error('下载模板失败');
+    }
+  };
+
+  // 解析CSV文件
+  const parseCSV = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split('\n').filter(line => line.trim());
+      const headers = lines[0].split(',').map(h => h.trim());
+
+      const rows = lines.slice(1).map((line, idx) => {
+        const values = line.split(',').map(v => v.trim());
+        const row: Record<string, string> = { rowNum: String(idx + 1) };
+        headers.forEach((h, i) => {
+          row[h] = values[i] || '';
+        });
+        return row;
+      });
+
+      setBatchPreview(rows);
+    };
+    reader.readAsText(file);
+  };
+
+  // 处理文件选择
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setBatchFile(file);
+      parseCSV(file);
+    }
+  };
+
+  // 执行批量导入
+  const handleBatchImport = async () => {
+    if (!batchFile) {
+      Toast.error('请选择CSV文件');
+      return;
+    }
+
+    setBatchLoading(true);
+    try {
+      const res = await algoApi.batchImport(batchFile);
+      Toast.success(`导入完成: 成功 ${res.data.success} 条, 失败 ${res.data.failed} 条`);
+      setBatchModalOpen(false);
+      setBatchFile(null);
+      setBatchPreview([]);
+      loadData();
+    } catch (err: any) {
+      Toast.error(err.response?.data?.detail || '导入失败');
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
   const statusColor = (status: string) => {
     switch (status) {
       case '运行中': return 'green';
@@ -205,6 +279,7 @@ export default function AlgoPage() {
         <Title heading={4} style={{ margin: 0 }}>算法交易</Title>
         <Space>
           <Button onClick={loadData} loading={loading}>刷新</Button>
+          <Button icon={<IconUpload />} onClick={() => setBatchModalOpen(true)}>批量导入</Button>
           <Button type="danger" onClick={handleStopAll}>全部停止</Button>
         </Space>
       </div>
@@ -344,6 +419,86 @@ export default function AlgoPage() {
           >
             启动算法
           </Button>
+        </div>
+      </Modal>
+
+      {/* 批量导入对话框 */}
+      <Modal
+        title="批量导入算法"
+        visible={batchModalOpen}
+        onCancel={() => { setBatchModalOpen(false); setBatchFile(null); setBatchPreview([]); }}
+        footer={(
+          <Space>
+            <Button onClick={() => { setBatchModalOpen(false); setBatchFile(null); setBatchPreview([]); }}>取消</Button>
+            <Button theme="solid" loading={batchLoading} disabled={!batchFile} onClick={handleBatchImport}>
+              确认导入{batchPreview.length > 0 ? ` (${batchPreview.length}条)` : ''}
+            </Button>
+          </Space>
+        )}
+        width={800}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Space>
+            <Button icon={<IconDownload />} onClick={downloadTemplate}>下载CSV模板</Button>
+          </Space>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+            id="csv-upload"
+          />
+          <label htmlFor="csv-upload">
+            <Button theme="solid" as="span" onClick={() => document.getElementById('csv-upload')?.click()}>
+              选择CSV文件
+            </Button>
+          </label>
+          {batchFile && <span style={{ marginLeft: 12 }}>{batchFile.name}</span>}
+        </div>
+
+        {batchPreview.length > 0 && (
+          <div>
+            <Text strong style={{ marginBottom: 8, display: 'block' }}>
+              预览 ({batchPreview.length} 条)
+            </Text>
+            <Table
+              columns={[
+                { title: '行号', dataIndex: 'rowNum', width: 60 },
+                { title: '模板', dataIndex: 'template_name' },
+                { title: '合约', dataIndex: 'symbol' },
+                { title: '交易所', dataIndex: 'exchange' },
+                { title: '方向', dataIndex: 'direction', width: 70 },
+                { title: '开平', dataIndex: 'offset', width: 70 },
+                { title: '价格', dataIndex: 'price', width: 80 },
+                { title: '数量', dataIndex: 'volume', width: 70 },
+              ]}
+              dataSource={batchPreview.slice(0, 10)}
+              pagination={false}
+              size="small"
+            />
+            {batchPreview.length > 10 && (
+              <Text type="tertiary" size="small" style={{ marginTop: 8, display: 'block' }}>
+                还有 {batchPreview.length - 10} 条未显示...
+              </Text>
+            )}
+          </div>
+        )}
+
+        <div style={{ marginTop: 16, padding: 12, background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
+          <Text strong>CSV格式说明：</Text>
+          <ul style={{ margin: '8px 0', paddingLeft: 20, fontSize: 13 }}>
+            <li>template_name: 算法模板名称 (如: TWAP, SNIPER)</li>
+            <li>symbol: 合约代码 (如: rb2410)</li>
+            <li>exchange: 交易所代码 (如: SHFE, DCE)</li>
+            <li>direction: 方向 (多/空)</li>
+            <li>offset: 开平 (开/平/平今/平昨)</li>
+            <li>price: 目标价格</li>
+            <li>volume: 下单数量</li>
+            <li>params: JSON格式参数 (可选)</li>
+          </ul>
         </div>
       </Modal>
     </div>

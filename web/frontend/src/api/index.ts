@@ -163,6 +163,14 @@ export const algoApi = {
   stopAll: () => client.post('/api/algo/stop-all'),
   pause: (name: string) => client.post(`/api/algo/${name}/pause`),
   resume: (name: string) => client.post(`/api/algo/${name}/resume`),
+  batchImport: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return client.post('/api/algo/batch-import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  batchTemplate: () => client.get('/api/algo/batch-template'),
 };
 
 // ============ 机器学习 ============
