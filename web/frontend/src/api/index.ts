@@ -130,6 +130,16 @@ export const algoApi = {
   resume: (name: string) => client.post(`/api/algo/${name}/resume`),
 };
 
+// ============ 机器学习 ============
+export const mlApi = {
+  generateFeatures: (params: Record<string, any>) => client.post('/api/ml/features/generate', params),
+  trainModel: (data: Record<string, any>) => client.post('/api/ml/models/train', data),
+  listModels: () => client.get('/api/ml/models'),
+  getModelDetail: (name: string) => client.get(`/api/ml/models/${name}`),
+  predict: (name: string, data: Record<string, any>) => client.post(`/api/ml/models/${name}/predict`, data),
+  deleteModel: (name: string) => client.delete(`/api/ml/models/${name}`),
+};
+
 // ============ 操作日志 ============
 export const logsApi = {
   query: (params?: Record<string, any>) => client.get('/api/logs/operations', { params }),

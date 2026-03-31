@@ -3,7 +3,7 @@ import { Layout, Nav, Avatar, Dropdown, Typography } from '@douyinfe/semi-ui';
 import {
   IconHome, IconLineChartStroked, IconSort, IconBulb,
   IconHistogram, IconFolder, IconSetting, IconSafe,
-  IconHistory, IconBolt, IconDesktop
+  IconHistory, IconBolt, IconDesktop, IconEdit, IconBrain
 } from '@douyinfe/semi-icons';
 import { useAuthStore } from '../stores/authStore';
 import ThemeToggle from './ThemeToggle';
@@ -15,10 +15,12 @@ const menuItems = [
   { itemKey: '/market', text: '行情中心', icon: <IconLineChartStroked /> },
   { itemKey: '/trading', text: '交易面板', icon: <IconSort /> },
   { itemKey: '/strategy', text: '策略管理', icon: <IconBulb /> },
+  { itemKey: '/editor', text: '策略编辑器', icon: <IconEdit /> },
   { itemKey: '/backtest', text: '回测中心', icon: <IconHistogram /> },
   { itemKey: '/data', text: '数据管理', icon: <IconFolder /> },
   { itemKey: '/risk', text: '风控设置', icon: <IconSafe /> },
   { itemKey: '/algo', text: '算法交易', icon: <IconDesktop /> },
+  { itemKey: '/ml', text: '机器学习', icon: <IconBrain /> },
   { itemKey: '/paper', text: '模拟交易', icon: <IconBolt /> },
   { itemKey: '/logs', text: '操作日志', icon: <IconHistory /> },
   { itemKey: '/settings', text: '系统设置', icon: <IconSetting /> },

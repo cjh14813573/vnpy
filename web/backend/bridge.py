@@ -696,6 +696,283 @@ class VnpyBridge:
                 return f.read()
         return ""
 
+    def save_strategy_source(self, class_name: str, content: str) -> bool:
+        """保存策略源码"""
+        cta = self._get_cta_engine()
+        if cta is None:
+            raise RuntimeError("CTA engine not initialized")
+
+        # 获取策略目录
+        strategy_path = Path.home() / ".vntrader" / "strategies"
+        strategy_path.mkdir(parents=True, exist_ok=True)
+
+        # 策略文件名（小写+下划线）
+        file_name = class_name.lower()
+        if not file_name.endswith('.py'):
+            file_name += '.py'
+
+        file_path = strategy_path / file_name
+
+        # 安全写入
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+
+            # 重新加载策略类
+            self._reload_strategy_classes()
+            return True
+        except Exception as e:
+            raise RuntimeError(f"保存策略失败: {e}")
+
+    def _reload_strategy_classes(self) -> None:
+        """重新加载策略类"""
+        cta = self._get_cta_engine()
+        if cta is None:
+            return
+
+        # 重新加载策略目录
+        strategy_path = Path.home() / ".vntrader" / "strategies"
+        if strategy_path.exists():
+            cta.load_strategy_class_from_folder(str(strategy_path))
+
+    def get_strategy_templates(self) -> list[dict]:
+        """获取策略模板列表"""
+        templates = [
+            {
+                "name": "EmptyStrategy",
+                "display_name": "空策略模板",
+                "description": "最基础的双均线策略框架",
+                "code": '''from vnpy_ctastrategy import CtaTemplate, StopOrder
+from vnpy.trader.object import TickData, BarData, TradeData, OrderData
+
+
+class EmptyStrategy(CtaTemplate):
+    author = "Your Name"
+
+    # 策略参数
+    fast_window = 10
+    slow_window = 20
+
+    # 策略变量
+    fast_ma = 0.0
+    slow_ma = 0.0
+
+    parameters = ["fast_window", "slow_window"]
+    variables = ["fast_ma", "slow_ma"]
+
+    def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
+        super().__init__(cta_engine, strategy_name, vt_symbol, setting)
+
+    def on_init(self):
+        self.write_log("策略初始化")
+        self.load_bar(10)
+
+    def on_start(self):
+        self.write_log("策略启动")
+
+    def on_stop(self):
+        self.write_log("策略停止")
+
+    def on_tick(self, tick: TickData):
+        pass
+
+    def on_bar(self, bar: BarData):
+        # TODO: 实现你的交易逻辑
+        pass
+
+    def on_order(self, order: OrderData):
+        pass
+
+    def on_trade(self, trade: TradeData):
+        self.put_event()
+'''
+            },
+            {
+                "name": "AtrRsiStrategy",
+                "display_name": "ATR+RSI策略",
+                "description": "经典的ATR止损+RSI入场策略",
+                "code": '''from vnpy_ctastrategy import CtaTemplate, StopOrder
+from vnpy.trader.object import TickData, BarData, TradeData, OrderData
+from vnpy.trader.constant import Direction, Offset
+from vnpy_ctastrategy.base import EngineType
+
+
+class AtrRsiStrategy(CtaTemplate):
+    author = "vn.py"
+
+    atr_length = 22
+    atr_ma_length = 10
+    rsi_length = 5
+    rsi_entry = 16
+    trailing_percent = 0.8
+    fixed_size = 1
+
+    atr_value = 0.0
+    atr_ma = 0.0
+    rsi_value = 0.0
+    rsi_buy = 0.0
+    rsi_sell = 0.0
+    intra_trade_high = 0.0
+    intra_trade_low = 0.0
+    long_stop = 0.0
+    short_stop = 0.0
+
+    parameters = [
+        "atr_length", "atr_ma_length", "rsi_length",
+        "rsi_entry", "trailing_percent", "fixed_size"
+    ]
+    variables = [
+        "atr_value", "atr_ma", "rsi_value",
+        "rsi_buy", "rsi_sell", "intra_trade_high",
+        "intra_trade_low", "long_stop", "short_stop"
+    ]
+
+    def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
+        super().__init__(cta_engine, strategy_name, vt_symbol, setting)
+        self.rsi_buy = 50 + self.rsi_entry
+        self.rsi_sell = 50 - self.rsi_entry
+
+    def on_init(self):
+        self.write_log("策略初始化")
+        self.load_bar(10)
+
+    def on_start(self):
+        self.write_log("策略启动")
+
+    def on_stop(self):
+        self.write_log("策略停止")
+
+    def on_tick(self, tick: TickData):
+        pass
+
+    def on_bar(self, bar: BarData):
+        self.cancel_all()
+
+        am = self.am
+        am.update_bar(bar)
+        if not am.inited:
+            return
+
+        self.atr_value = am.atr(self.atr_length)
+        self.atr_ma = am.sma(self.atr_length)
+        self.rsi_value = am.rsi(self.rsi_length)
+
+        if self.pos == 0:
+            self.intra_trade_high = bar.high_price
+            self.intra_trade_low = bar.low_price
+
+            if self.atr_value > self.atr_ma:
+                if self.rsi_value > self.rsi_buy:
+                    self.buy(bar.close_price + 5, self.fixed_size)
+                elif self.rsi_value < self.rsi_sell:
+                    self.short(bar.close_price - 5, self.fixed_size)
+
+        elif self.pos > 0:
+            self.intra_trade_high = max(self.intra_trade_high, bar.high_price)
+            self.intra_trade_low = bar.low_price
+
+            self.long_stop = self.intra_trade_high * (1 - self.trailing_percent / 100)
+            self.sell(self.long_stop, abs(self.pos), stop=True)
+
+        elif self.pos < 0:
+            self.intra_trade_high = bar.high_price
+            self.intra_trade_low = min(self.intra_trade_low, bar.low_price)
+
+            self.short_stop = self.intra_trade_low * (1 + self.trailing_percent / 100)
+            self.cover(self.short_stop, abs(self.pos), stop=True)
+
+        self.put_event()
+
+    def on_order(self, order: OrderData):
+        pass
+
+    def on_trade(self, trade: TradeData):
+        if trade.offset == Offset.OPEN:
+            if trade.direction == Direction.LONG:
+                self.intra_trade_high = trade.price
+                self.intra_trade_low = trade.price
+            else:
+                self.intra_trade_high = trade.price
+                self.intra_trade_low = trade.price
+        self.put_event()
+'''
+            },
+            {
+                "name": "DualThrustStrategy",
+                "display_name": "Dual Thrust策略",
+                "description": "经典的Dual Thrust趋势跟踪策略",
+                "code": '''from vnpy_ctastrategy import CtaTemplate, StopOrder
+from vnpy.trader.object import TickData, BarData, TradeData, OrderData
+
+
+class DualThrustStrategy(CtaTemplate):
+    author = "vn.py"
+
+    n_days = 5
+    k1 = 0.4
+    k2 = 0.6
+    fixed_size = 1
+
+    buy_entry = 0.0
+    sell_entry = 0.0
+
+    parameters = ["n_days", "k1", "k2", "fixed_size"]
+    variables = ["buy_entry", "sell_entry"]
+
+    def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
+        super().__init__(cta_engine, strategy_name, vt_symbol, setting)
+
+    def on_init(self):
+        self.write_log("策略初始化")
+        self.load_bar(10)
+
+    def on_start(self):
+        self.write_log("策略启动")
+
+    def on_stop(self):
+        self.write_log("策略停止")
+
+    def on_tick(self, tick: TickData):
+        pass
+
+    def on_bar(self, bar: BarData):
+        self.cancel_all()
+
+        am = self.am
+        am.update_bar(bar)
+        if not am.inited:
+            return
+
+        # 计算Dual Thrust范围
+        hh = am.high[-self.n_days:].max()
+        ll = am.low[-self.n_days:].min()
+        hc = am.close[-self.n_days:].max()
+        lc = am.close[-self.n_days:].min()
+
+        range_value = max(hh - lc, hc - ll)
+        self.buy_entry = bar.open_price + self.k1 * range_value
+        self.sell_entry = bar.open_price - self.k2 * range_value
+
+        if self.pos == 0:
+            self.buy(self.buy_entry, self.fixed_size)
+            self.short(self.sell_entry, self.fixed_size)
+        elif self.pos > 0:
+            self.sell(self.sell_entry, abs(self.pos))
+        elif self.pos < 0:
+            self.cover(self.buy_entry, abs(self.pos))
+
+        self.put_event()
+
+    def on_order(self, order: OrderData):
+        pass
+
+    def on_trade(self, trade: TradeData):
+        self.put_event()
+'''
+            }
+        ]
+        return templates
+
     def run_backtest_optimization(
         self,
         class_name: str,

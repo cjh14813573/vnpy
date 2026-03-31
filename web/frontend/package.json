@@ -18,6 +18,7 @@
   "dependencies": {
     "@douyinfe/semi-icons": "^2.93.0",
     "@douyinfe/semi-ui": "^2.93.0",
+    "@monaco-editor/react": "^4.7.0",
     "axios": "^1.14.0",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.6",

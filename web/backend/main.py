@@ -25,6 +25,8 @@ from routers.data import router as data_router
 from routers.risk import router as risk_router
 from routers.paper import router as paper_router
 from routers.algo import router as algo_router
+from routers.editor import router as editor_router
+from routers.ml import router as ml_router
 from routers.logs import router as logs_router
 
 
@@ -115,6 +117,8 @@ app.include_router(data_router)
 app.include_router(risk_router)
 app.include_router(paper_router)
 app.include_router(algo_router)
+app.include_router(editor_router)
+app.include_router(ml_router)
 app.include_router(logs_router)
 
 
