@@ -1,4 +1,5 @@
-import client from './client';
+import client, { API_BASE as API_BASE_URL } from './client';
+export { API_BASE_URL };
 
 // ============ 认证 ============
 export const authApi = {
@@ -108,6 +109,10 @@ export const riskApi = {
   events: (limit?: number) => client.get('/api/risk/events', { params: { limit } }),
   status: () => client.get('/api/risk/status'),
   reset: () => client.post('/api/risk/reset'),
+  // 订单流监控
+  orderFlow: (limit?: number, status?: string) => client.get('/api/risk/order-flow', { params: { limit, status } }),
+  orderFlowStats: () => client.get('/api/risk/order-flow/stats'),
+  checkOrder: (data: Record<string, any>) => client.post('/api/risk/order-flow/check', data),
 };
 
 // ============ 模拟交易 ============
