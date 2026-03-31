@@ -13,6 +13,7 @@ const { Sider, Header, Content } = Layout;
 const menuItems = [
   { itemKey: '/', text: '总览', icon: <IconHome /> },
   { itemKey: '/market', text: '行情中心', icon: <IconLineChartStroked /> },
+  { itemKey: '/contracts', text: '合约管理', icon: <IconFolder /> },
   { itemKey: '/trading', text: '交易面板', icon: <IconSort /> },
   { itemKey: '/strategy', text: '策略管理', icon: <IconBulb /> },
   { itemKey: '/editor', text: '策略编辑器', icon: <IconEdit /> },

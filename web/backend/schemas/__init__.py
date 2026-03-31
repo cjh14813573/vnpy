@@ -27,6 +27,7 @@ class FilterParams(BaseModel):
     """过滤参数"""
     keyword: Optional[str] = Field(default=None, description="关键词搜索")
     exchange: Optional[str] = Field(default=None, description="交易所过滤")
+    product: Optional[str] = Field(default=None, description="产品类型过滤")
     status: Optional[str] = Field(default=None, description="状态过滤")
     start_date: Optional[str] = Field(default=None, description="开始日期")
     end_date: Optional[str] = Field(default=None, description="结束日期")

@@ -26,8 +26,13 @@ export const systemApi = {
 
 // ============ 行情 ============
 export const marketApi = {
-  contracts: () => client.get('/api/market/contracts'),
+  contracts: (params?: { page?: number; page_size?: number; keyword?: string; exchange?: string; product?: string }) =>
+    client.get('/api/market/contracts', { params }),
   contract: (vtSymbol: string) => client.get(`/api/market/contracts/${vtSymbol}`),
+  contractDetail: (vtSymbol: string) => client.get(`/api/market/contracts/${vtSymbol}/detail`),
+  searchContracts: (params: { keyword: string; exchange?: string; product?: string; limit?: number }) =>
+    client.get('/api/market/contracts/search', { params }),
+  products: () => client.get('/api/market/products'),
   ticks: () => client.get('/api/market/ticks'),
   tick: (vtSymbol: string) => client.get(`/api/market/ticks/${vtSymbol}`),
   subscribe: (data: { vt_symbol: string; gateway_name: string }) =>

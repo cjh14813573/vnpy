@@ -5,6 +5,7 @@ import AuthGuard from './components/AuthGuard';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import MarketPage from './pages/MarketPage';
+import ContractManagerPage from './pages/ContractManagerPage';
 import TradingPage from './pages/TradingPage';
 import StrategyPage from './pages/StrategyPage';
 import StrategyDetailPage from './pages/StrategyDetailPage';
@@ -38,6 +39,7 @@ function AppContent() {
             <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
               <Route index element={<DashboardPage />} />
               <Route path="market" element={<MarketPage />} />
+              <Route path="contracts" element={<ContractManagerPage />} />
               <Route path="trading" element={<TradingPage />} />
               <Route path="strategy" element={<StrategyPage />} />
               <Route path="strategy/:name" element={<StrategyDetailPage />} />
