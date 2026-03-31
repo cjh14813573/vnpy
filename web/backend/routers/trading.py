@@ -241,3 +241,236 @@ async def get_accounts(
         filter_params,
         keyword_fields=["gateway_name", "accountid"]
     )
+
+
+# ============ 交易增强功能 ============
+
+# 内存存储条件单（实际应该使用数据库）
+_conditional_orders: dict[str, dict] = {}
+
+
+@router.post("/cancel-all")
+async def cancel_all_orders(
+    gateway_name: Optional[str] = Query(None, description="指定网关，不传则取消所有"),
+    request: Request = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """一键全撤 - 取消所有活动委托"""
+    ip, ua = get_client_info(request)
+    username = current_user["username"]
+
+    try:
+        if gateway_name:
+            count = bridge.cancel_all_orders_for_gateway(gateway_name)
+        else:
+            count = bridge.cancel_all_orders()
+
+        operation_log.log(
+            username=username,
+            operation=OperationType.ORDER_CANCEL,
+            target_type="order",
+            target_id="all",
+            details=json.dumps({"gateway_name": gateway_name, "count": count}),
+            ip_address=ip,
+            user_agent=ua,
+            success=True,
+        )
+
+        return {"message": f"已取消 {count} 个委托", "count": count}
+    except Exception as e:
+        operation_log.log(
+            username=username,
+            operation=OperationType.ORDER_CANCEL,
+            target_type="order",
+            target_id="all",
+            details=json.dumps({"gateway_name": gateway_name, "error": str(e)}),
+            ip_address=ip,
+            user_agent=ua,
+            success=False,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class BatchOrderRequest(BaseModel):
+    orders: list[OrderSendRequest]
+
+
+@router.post("/batch")
+async def send_batch_orders(
+    req: BatchOrderRequest,
+    request: Request = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """批量下单"""
+    ip, ua = get_client_info(request)
+    username = current_user["username"]
+
+    results = []
+    success_count = 0
+
+    for order_req in req.orders:
+        try:
+            vt_orderid = bridge.send_order(order_req.model_dump())
+            results.append({"status": "success", "vt_orderid": vt_orderid})
+            success_count += 1
+        except Exception as e:
+            results.append({"status": "error", "error": str(e)})
+
+    operation_log.log(
+        username=username,
+        operation=OperationType.ORDER_SEND,
+        target_type="order",
+        target_id="batch",
+        details=json.dumps({"total": len(req.orders), "success": success_count}),
+        ip_address=ip,
+        user_agent=ua,
+        success=success_count == len(req.orders),
+    )
+
+    return {
+        "message": f"批量下单完成: {success_count}/{len(req.orders)} 成功",
+        "total": len(req.orders),
+        "success_count": success_count,
+        "results": results
+    }
+
+
+class ConditionalOrderRequest(BaseModel):
+    symbol: str
+    exchange: str
+    direction: str
+    type: str
+    volume: float
+    price: float
+    offset: str
+    gateway_name: str
+    trigger_type: str  # price_above, price_below, time
+    trigger_price: Optional[float] = None
+    trigger_time: Optional[str] = None
+    reference: Optional[str] = ""
+
+
+@router.post("/conditional")
+async def create_conditional_order(
+    req: ConditionalOrderRequest,
+    request: Request = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """创建条件单"""
+    import uuid
+    from datetime import datetime
+
+    ip, ua = get_client_info(request)
+    username = current_user["username"]
+
+    order_id = f"COND-{uuid.uuid4().hex[:12].upper()}"
+
+    conditional_order = {
+        "id": order_id,
+        "symbol": req.symbol,
+        "exchange": req.exchange,
+        "direction": req.direction,
+        "type": req.type,
+        "volume": req.volume,
+        "price": req.price,
+        "offset": req.offset,
+        "gateway_name": req.gateway_name,
+        "trigger_type": req.trigger_type,
+        "trigger_price": req.trigger_price,
+        "trigger_time": req.trigger_time,
+        "reference": req.reference,
+        "status": "pending",
+        "created_at": datetime.now().isoformat(),
+        "created_by": username,
+    }
+
+    _conditional_orders[order_id] = conditional_order
+
+    operation_log.log(
+        username=username,
+        operation=OperationType.ORDER_SEND,
+        target_type="conditional_order",
+        target_id=order_id,
+        details=json.dumps(conditional_order),
+        ip_address=ip,
+        user_agent=ua,
+        success=True,
+    )
+
+    return {"id": order_id, "message": "条件单创建成功", "order": conditional_order}
+
+
+@router.get("/conditional")
+async def get_conditional_orders(
+    status: Optional[str] = Query(None, description="筛选状态: pending, triggered, cancelled")
+):
+    """获取条件单列表"""
+    orders = list(_conditional_orders.values())
+    if status:
+        orders = [o for o in orders if o["status"] == status]
+    return orders[::-1]  # 最新在前
+
+
+@router.post("/conditional/{order_id}/cancel")
+async def cancel_conditional_order(
+    order_id: str,
+    request: Request = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """取消条件单"""
+    ip, ua = get_client_info(request)
+    username = current_user["username"]
+
+    if order_id not in _conditional_orders:
+        raise HTTPException(status_code=404, detail="条件单不存在")
+
+    order = _conditional_orders[order_id]
+    if order["status"] != "pending":
+        raise HTTPException(status_code=400, detail="只能取消待触发的条件单")
+
+    order["status"] = "cancelled"
+    order["cancelled_at"] = datetime.now().isoformat()
+
+    operation_log.log(
+        username=username,
+        operation=OperationType.ORDER_CANCEL,
+        target_type="conditional_order",
+        target_id=order_id,
+        details=json.dumps({"order_id": order_id}),
+        ip_address=ip,
+        user_agent=ua,
+        success=True,
+    )
+
+    return {"message": "条件单已取消"}
+
+
+@router.post("/conditional/cancel-all")
+async def cancel_all_conditional_orders(
+    request: Request = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """取消所有待触发的条件单"""
+    ip, ua = get_client_info(request)
+    username = current_user["username"]
+
+    count = 0
+    for order in _conditional_orders.values():
+        if order["status"] == "pending":
+            order["status"] = "cancelled"
+            order["cancelled_at"] = datetime.now().isoformat()
+            count += 1
+
+    operation_log.log(
+        username=username,
+        operation=OperationType.ORDER_CANCEL,
+        target_type="conditional_order",
+        target_id="all",
+        details=json.dumps({"count": count}),
+        ip_address=ip,
+        user_agent=ua,
+        success=True,
+    )
+
+    return {"message": f"已取消 {count} 个条件单", "count": count}

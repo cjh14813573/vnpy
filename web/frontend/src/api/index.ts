@@ -46,6 +46,15 @@ export const tradingApi = {
   trades: () => client.get('/api/trading/trades'),
   positions: () => client.get('/api/trading/positions'),
   accounts: () => client.get('/api/trading/accounts'),
+  // 交易增强功能
+  cancelAll: (gatewayName?: string) =>
+    client.post('/api/trading/cancel-all', null, { params: gatewayName ? { gateway_name: gatewayName } : undefined }),
+  batchOrders: (orders: Record<string, any>[]) => client.post('/api/trading/batch', { orders }),
+  // 条件单
+  createConditional: (data: Record<string, any>) => client.post('/api/trading/conditional', data),
+  conditionalOrders: (status?: string) => client.get('/api/trading/conditional', { params: status ? { status } : undefined }),
+  cancelConditional: (orderId: string) => client.post(`/api/trading/conditional/${orderId}/cancel`),
+  cancelAllConditional: () => client.post('/api/trading/conditional/cancel-all'),
 };
 
 // ============ 策略 ============

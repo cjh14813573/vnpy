@@ -457,6 +457,41 @@ class VnpyBridge:
     def get_all_accounts(self) -> list[dict]:
         return [self._account_to_dict(a) for a in self.main_engine.get_all_accounts()]
 
+    def cancel_all_orders(self) -> int:
+        """取消所有活动委托，返回取消数量"""
+        active_orders = self.main_engine.get_all_active_orders()
+        count = 0
+        for order in active_orders:
+            try:
+                req = CancelRequest(
+                    orderid=order.orderid,
+                    symbol=order.symbol,
+                    exchange=order.exchange
+                )
+                self.main_engine.cancel_order(req, order.gateway_name)
+                count += 1
+            except Exception:
+                pass
+        return count
+
+    def cancel_all_orders_for_gateway(self, gateway_name: str) -> int:
+        """取消指定网关的所有活动委托"""
+        active_orders = self.main_engine.get_all_active_orders()
+        count = 0
+        for order in active_orders:
+            if order.gateway_name == gateway_name:
+                try:
+                    req = CancelRequest(
+                        orderid=order.orderid,
+                        symbol=order.symbol,
+                        exchange=order.exchange
+                    )
+                    self.main_engine.cancel_order(req, gateway_name)
+                    count += 1
+                except Exception:
+                    pass
+        return count
+
     # ============ CTA 策略 ============
 
     def _get_cta_engine(self):
