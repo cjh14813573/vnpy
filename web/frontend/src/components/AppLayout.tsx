@@ -231,6 +231,7 @@ export default function AppLayout() {
           style={{ height: '100%' }}
           footer={{
             collapseButton: true,
+            onCollapseChange: handleCollapseChange,
           }}
           isCollapsed={sidebarCollapsed}
         />
