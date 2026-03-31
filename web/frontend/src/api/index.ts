@@ -61,6 +61,18 @@ export const tradingApi = {
   cancelStopLossTakeProfit: (orderId: string) => client.post(`/api/trading/stop-loss-take-profit/${orderId}/cancel`),
 };
 
+// ============ 系统设置 ============
+export const settingsApi = {
+  getAll: () => client.get('/api/settings'),
+  getCategory: (category: string) => client.get(`/api/settings/${category}`),
+  updateSetting: (category: string, key: string, value: any) =>
+    client.put(`/api/settings/${category}/${key}`, { value }),
+  updateCategory: (category: string, data: Record<string, any>) =>
+    client.put(`/api/settings/${category}`, data),
+  reset: (category?: string) => client.post('/api/settings/reset', null, { params: category ? { category } : undefined }),
+  getUserPreferences: () => client.get('/api/settings/user/preferences'),
+};
+
 // ============ 策略 ============
 export const strategyApi = {
   classes: () => client.get('/api/strategy/classes'),

@@ -29,6 +29,7 @@ from routers.algo import router as algo_router
 from routers.editor import router as editor_router
 from routers.ml import router as ml_router
 from routers.logs import router as logs_router
+from routers.settings import router as settings_router
 
 
 @asynccontextmanager
@@ -127,6 +128,7 @@ app.include_router(algo_router)
 app.include_router(editor_router)
 app.include_router(ml_router)
 app.include_router(logs_router)
+app.include_router(settings_router)
 
 
 @app.get("/")
