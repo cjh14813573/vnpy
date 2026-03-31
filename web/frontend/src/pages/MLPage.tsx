@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Typography, Card, Button, Input, Select, Row, Col, Toast, Space, Table, Modal, Descriptions, Tabs } from '@douyinfe/semi-ui';
+import { Typography, Card, Button, Input, Select, Row, Col, Toast, Space, Table, Modal, Descriptions } from '@douyinfe/semi-ui';
 import { IconPlus, IconPlay, IconDelete } from '@douyinfe/semi-icons';
 import { mlApi } from '../api';
 import ModelEvaluationCharts from '../components/ml/ModelEvaluationCharts';
@@ -24,6 +24,50 @@ interface MLModel {
   config?: Record<string, any>;
   evaluation?: Record<string, any>;
   feature_importance?: Record<string, number>;
+}
+
+// 自定义 Tabs 组件
+function SimpleTabs({ defaultActiveKey, children }: { defaultActiveKey: string; children: React.ReactNode }) {
+  const [activeKey, setActiveKey] = useState(defaultActiveKey);
+
+  const tabs = Array.isArray(children) ? children : [children];
+  const tabItems = tabs.filter(Boolean).map((child: any) => ({
+    key: child.props.itemKey,
+    tab: child.props.tab,
+    content: child.props.children,
+  }));
+
+  return (
+    <div>
+      <div style={{ borderBottom: '1px solid var(--semi-color-border)', marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 32 }}>
+          {tabItems.map((item) => (
+            <div
+              key={item.key}
+              onClick={() => setActiveKey(item.key)}
+              style={{
+                padding: '12px 0',
+                cursor: 'pointer',
+                borderBottom: activeKey === item.key ? '2px solid var(--semi-color-primary)' : '2px solid transparent',
+                color: activeKey === item.key ? 'var(--semi-color-primary)' : 'var(--semi-color-text-1)',
+                fontWeight: activeKey === item.key ? 600 : 400,
+                transition: 'all 0.3s',
+              }}
+            >
+              {item.tab}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        {tabItems.find((item) => item.key === activeKey)?.content}
+      </div>
+    </div>
+  );
+}
+
+function TabPane({ children }: { tab: React.ReactNode; itemKey: string; children: React.ReactNode }) {
+  return <>{children}</>;
 }
 
 export default function MLPage() {
@@ -115,13 +159,14 @@ export default function MLPage() {
   };
 
   const columns = [
-    { title: '模型名称', dataIndex: 'name' },
-    { title: '准确率', dataIndex: 'metrics', render: (m: any) => `${(m.accuracy * 100).toFixed(1)}%` },
-    { title: 'F1分数', dataIndex: 'metrics', render: (m: any) => m.f1.toFixed(3) },
-    { title: '特征数', dataIndex: 'features' },
-    { title: '创建时间', dataIndex: 'created_at', render: (v: string) => new Date(v).toLocaleDateString() },
+    { title: '模型名称', dataIndex: 'name', key: 'name' },
+    { title: '准确率', dataIndex: 'metrics', key: 'accuracy', render: (m: any) => `${(m.accuracy * 100).toFixed(1)}%` },
+    { title: 'F1分数', dataIndex: 'metrics', key: 'f1', render: (m: any) => m.f1.toFixed(3) },
+    { title: '特征数', dataIndex: 'features', key: 'features' },
+    { title: '创建时间', dataIndex: 'created_at', key: 'created_at', render: (v: string) => new Date(v).toLocaleDateString() },
     {
       title: '操作',
+      key: 'action',
       render: (_: any, record: MLModel) => (
         <Space>
           <Button icon={<IconPlay />} size="small" onClick={() => viewDetail(record)}>详情</Button>
@@ -190,8 +235,8 @@ export default function MLPage() {
         centered
       >
         {selectedModel && (
-          <Tabs type="line">
-            <Tabs.TabPane tab="评估指标" itemKey="metrics">
+          <SimpleTabs defaultActiveKey="metrics">
+            <TabPane tab="评估指标" itemKey="metrics">
               {selectedModel.evaluation ? (
                 <ModelEvaluationCharts
                   data={{
@@ -205,8 +250,8 @@ export default function MLPage() {
                   <Text type="tertiary">该模型没有详细的评估数据</Text>
                 </div>
               )}
-            </Tabs.TabPane>
-            <Tabs.TabPane tab="基本信息" itemKey="info">
+            </TabPane>
+            <TabPane tab="基本信息" itemKey="info">
               <Descriptions layout="horizontal">
                 <Descriptions.Item itemKey="模型名称">{selectedModel.name}</Descriptions.Item>
                 <Descriptions.Item itemKey="模型类型">{selectedModel.model_type || '未知'}</Descriptions.Item>
@@ -227,13 +272,13 @@ export default function MLPage() {
                   </Descriptions>
                 </div>
               )}
-            </Tabs.TabPane>
-            <Tabs.TabPane tab="特征列表" itemKey="features">
+            </TabPane>
+            <TabPane tab="特征列表" itemKey="features">
               {selectedModel.feature_names ? (
                 <div style={{ maxHeight: 400, overflow: 'auto' }}>
                   {selectedModel.feature_names.map((name, idx) => (
                     <div
-                      key={name}
+                      key={`${selectedModel.name}-feature-${idx}`}
                       style={{
                         padding: '8px 12px',
                         borderBottom: '1px solid var(--semi-color-border)',
@@ -249,8 +294,8 @@ export default function MLPage() {
               ) : (
                 <Text type="tertiary">暂无特征信息</Text>
               )}
-            </Tabs.TabPane>
-          </Tabs>
+            </TabPane>
+          </SimpleTabs>
         )}
       </Modal>
     </div>

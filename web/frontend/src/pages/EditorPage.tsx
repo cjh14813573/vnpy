@@ -8,7 +8,15 @@ import {
   IconSave, IconPlay, IconPlus, IconChevronDown
 } from '@douyinfe/semi-icons';
 import Editor from '@monaco-editor/react';
+import { loader } from '@monaco-editor/react';
 import { strategyApi } from '../api';
+
+// 配置 Monaco 使用本地路径
+loader.config({
+  paths: {
+    vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs'
+  }
+});
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;

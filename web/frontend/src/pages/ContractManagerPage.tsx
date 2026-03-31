@@ -81,7 +81,8 @@ export default function ContractManagerPage() {
           marketApi.products(),
         ]);
         setExchanges(exRes.data || []);
-        setProducts(prodRes.data || []);
+        const productsData = prodRes.data || [];
+        setProducts(Array.isArray(productsData) ? productsData : []);
       } catch (err) {
         console.error('加载选项失败:', err);
       }

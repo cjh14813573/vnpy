@@ -75,6 +75,23 @@ export default function AppLayout() {
     return null;
   }
 
+  // 计算选中的菜单项 - 优先匹配最精确的路径
+  const getSelectedKeys = () => {
+    const pathname = location.pathname;
+    // 子路径优先匹配
+    const allPaths = [
+      '/ml/compare', '/ml/signals', '/ml/features', '/ml',
+      '/risk/exposure', '/risk',
+      '/strategy/detail', '/strategy',
+    ];
+    for (const path of allPaths) {
+      if (pathname === path || pathname.startsWith(path + '/')) {
+        return [path];
+      }
+    }
+    return [pathname];
+  };
+
   // 移动端布局
   if (isMobile) {
     return (
@@ -188,7 +205,7 @@ export default function AppLayout() {
               fontSize: 14,
             }}>V</div>
           }}
-          selectedKeys={[location.pathname]}
+          selectedKeys={getSelectedKeys()}
           onSelect={({ itemKey }) => navigate(itemKey as string)}
           style={{ height: '100%' }}
           footer={{

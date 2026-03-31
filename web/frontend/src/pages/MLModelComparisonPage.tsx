@@ -19,7 +19,7 @@ import {
   Empty,
   Badge,
 } from '@douyinfe/semi-ui';
-import { IconPlus, IconRefresh, IconPlay, IconChart } from '@douyinfe/semi-icons';
+import { IconPlus, IconRefresh, IconPlay, IconHistogram } from '@douyinfe/semi-icons';
 import { mlApi } from '../api';
 import ReactECharts from 'echarts-for-react';
 
@@ -329,7 +329,7 @@ export default function MLModelComparisonPage() {
           </Button>
           <Button
             theme="solid"
-            icon={<IconChart />}
+            icon={<IconHistogram />}
             onClick={() => {
               setSelectedModels([]);
               setComparisonResult(null);
@@ -367,8 +367,8 @@ export default function MLModelComparisonPage() {
       </Card>
 
       {/* 结果展示 */}
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <Tabs.TabPane tab="模型对比" itemKey="comparison">
+      <Tabs activeKey={activeTab} onChange={setActiveTab} key="ml-compare-tabs">
+        <Tabs.TabPane tab="模型对比" itemKey="comparison" key="comparison-pane">
           {comparisonResult ? (
             <Spin spinning={loading}>
               {/* 最佳模型 */}
@@ -424,7 +424,7 @@ export default function MLModelComparisonPage() {
           )}
         </Tabs.TabPane>
 
-        <Tabs.TabPane tab="回测结果" itemKey="backtest">
+        <Tabs.TabPane tab="回测结果" itemKey="backtest" key="backtest-pane">
           {backtestResult ? (
             <Spin spinning={loading}>
               {/* 回测指标 */}

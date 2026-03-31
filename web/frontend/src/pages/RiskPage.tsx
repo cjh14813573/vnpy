@@ -332,8 +332,8 @@ export default function RiskPage() {
       </Row>
 
       <Spin spinning={loading}>
-        <Tabs activeKey={activeTab} onChange={setActiveTab}>
-          <Tabs.TabPane tab="风控规则" itemKey="rules">
+        <Tabs activeKey={activeTab} onChange={setActiveTab} key="risk-main-tabs">
+          <Tabs.TabPane tab="风控规则" itemKey="rules" key="rules-pane">
             <Typography.Title heading={5} style={{ marginBottom: 16 }}>风控规则配置</Typography.Title>
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               {rules.map((rule) => (
@@ -407,7 +407,7 @@ export default function RiskPage() {
               订单流监控
               {orderFlowStatus === 'connected' && <Badge type="success" style={{ marginLeft: 4 }} />}
             </span>
-          } itemKey="orderflow">
+          } itemKey="orderflow" key="orderflow-pane">
             {/* 订单流统计卡片 */}
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col span={4}>

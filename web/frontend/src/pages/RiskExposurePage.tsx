@@ -286,8 +286,8 @@ export default function RiskExposurePage() {
         </Space>
       </div>
 
-      <Tabs type="line">
-        <Tabs.TabPane tab="风险概览" itemKey="overview">
+      <Tabs type="line" key="risk-exposure-tabs">
+        <Tabs.TabPane tab="风险概览" itemKey="overview" key="overview-pane">
           <Spin spinning={loading}>
             {exposureData ? (
               <>
@@ -439,7 +439,7 @@ export default function RiskExposurePage() {
           </Spin>
         </Tabs.TabPane>
 
-        <Tabs.TabPane tab="风控触发器" itemKey="triggers">
+        <Tabs.TabPane tab="风控触发器" itemKey="triggers" key="triggers-pane">
           <Row gutter={[16, 16]}>
             <Col span={16}>
               <Card title="触发器配置" style={{ borderRadius: 12 }}>
