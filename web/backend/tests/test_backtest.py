@@ -100,3 +100,74 @@ class TestBacktestAsyncTasks:
         assert resp.status_code == 200
         data = resp.json()
         assert "tasks" in data
+
+
+class TestBacktestOptimization:
+    """参数优化任务测试"""
+
+    def setup_method(self):
+        """每个测试前清理任务"""
+        backtest_runner._tasks = {}
+        backtest_runner._running_count = 0
+
+    def test_create_optimize_task(self, client, auth_headers):
+        """创建参数优化任务"""
+        resp = client.post("/api/backtest/optimize-tasks", json={
+            "class_name": "AtrRsiStrategy",
+            "vt_symbol": "rb2410.SHFE",
+            "interval": "1m",
+            "start": "2024-01-01",
+            "end": "2024-02-01",
+            "parameters": {
+                "atr_length": ["10", "20", "30"],
+                "rsi_length": ["5", "10", "14"]
+            },
+            "target_name": "sharpe_ratio"
+        }, headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "task_id" in data
+
+    def test_get_optimize_task_result(self, client, auth_headers):
+        """获取优化任务结果"""
+        # 先创建优化任务
+        resp = client.post("/api/backtest/optimize-tasks", json={
+            "class_name": "AtrRsiStrategy",
+            "vt_symbol": "rb2410.SHFE",
+            "interval": "1m",
+            "start": "2024-01-01",
+            "end": "2024-02-01",
+            "parameters": {
+                "atr_length": ["10", "20"],
+                "rsi_length": ["5", "10"]
+            },
+            "target_name": "sharpe_ratio"
+        }, headers=auth_headers)
+        task_id = resp.json()["task_id"]
+
+        # 获取任务结果
+        resp = client.get(f"/api/backtest/tasks/{task_id}/result", headers=auth_headers)
+        assert resp.status_code in [200, 404]  # 可能还未完成
+
+    def test_cancel_task(self, client, auth_headers):
+        """取消任务"""
+        # 创建任务
+        resp = client.post("/api/backtest/tasks", json={
+            "class_name": "AtrRsiStrategy",
+            "vt_symbol": "rb2410.SHFE",
+            "interval": "1m",
+            "start": "2024-01-01",
+            "end": "2024-02-01",
+            "rate": 0.0,
+            "slippage": 0.0,
+            "size": 1,
+            "pricetick": 0.01,
+            "capital": 100000.0,
+            "setting": {}
+        }, headers=auth_headers)
+        task_id = resp.json()["task_id"]
+
+        # 取消任务（任务可能已完成，返回200或404都可接受）
+        resp = client.post(f"/api/backtest/tasks/{task_id}/cancel", headers=auth_headers)
+        assert resp.status_code in [200, 404]

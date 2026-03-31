@@ -1,6 +1,8 @@
 """交易下单路由"""
 
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from typing import Optional
 from auth import get_current_user
 from bridge import bridge
@@ -359,7 +361,6 @@ async def create_conditional_order(
 ):
     """创建条件单"""
     import uuid
-    from datetime import datetime
 
     ip, ua = get_client_info(request)
     username = current_user["username"]

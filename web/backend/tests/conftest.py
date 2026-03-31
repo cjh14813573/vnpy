@@ -87,6 +87,8 @@ def _make_mock_bridge():
     ]
     mock_bridge.send_order.return_value = "CTP.000000001"
     mock_bridge.cancel_order.return_value = None
+    mock_bridge.cancel_all_orders.return_value = 5
+    mock_bridge.cancel_all_orders_for_gateway.return_value = 3
     mock_bridge.get_all_orders.return_value = []
     mock_bridge.get_all_active_orders.return_value = []
     mock_bridge.get_all_trades.return_value = []

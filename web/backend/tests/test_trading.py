@@ -145,3 +145,110 @@ class TestAccounts:
         assert len(data["data"]) >= 1
         assert data["data"][0]["balance"] == 1000000
         assert data["data"][0]["accountid"] == "001"
+
+
+class TestTradingEnhancements:
+    """交易增强功能测试"""
+
+    def test_cancel_all_orders(self, client, auth_headers):
+        """一键全撤"""
+        resp = client.post("/api/trading/cancel-all", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "count" in data
+        assert "已取消" in data["message"]
+
+    def test_cancel_all_orders_with_gateway(self, client, auth_headers):
+        """指定网关一键全撤"""
+        resp = client.post("/api/trading/cancel-all?gateway_name=CTP", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "count" in data
+
+    def test_batch_orders(self, client, auth_headers):
+        """批量下单"""
+        orders = [
+            {
+                "symbol": "rb2410",
+                "exchange": "SHFE",
+                "direction": "多",
+                "type": "限价",
+                "volume": 1,
+                "price": 3800,
+                "offset": "开",
+                "gateway_name": "CTP",
+            },
+            {
+                "symbol": "rb2410",
+                "exchange": "SHFE",
+                "direction": "空",
+                "type": "限价",
+                "volume": 1,
+                "price": 3805,
+                "offset": "开",
+                "gateway_name": "CTP",
+            },
+        ]
+        resp = client.post("/api/trading/batch", json={"orders": orders}, headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "total" in data
+        assert "success_count" in data
+        assert "results" in data
+        assert data["total"] == 2
+
+    def test_conditional_order_create(self, client, auth_headers):
+        """创建条件单"""
+        resp = client.post("/api/trading/conditional", json={
+            "symbol": "rb2410",
+            "exchange": "SHFE",
+            "direction": "多",
+            "type": "限价",
+            "volume": 1,
+            "price": 3800,
+            "offset": "开",
+            "gateway_name": "CTP",
+            "trigger_type": "price_above",
+            "trigger_price": 3850,
+        }, headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "id" in data
+        assert "order" in data
+        assert data["order"]["trigger_type"] == "price_above"
+
+    def test_conditional_order_list(self, client, auth_headers):
+        """获取条件单列表"""
+        resp = client.get("/api/trading/conditional", headers=auth_headers)
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_conditional_order_cancel(self, client, auth_headers):
+        """取消条件单"""
+        # 先创建条件单
+        create_resp = client.post("/api/trading/conditional", json={
+            "symbol": "rb2410",
+            "exchange": "SHFE",
+            "direction": "多",
+            "type": "限价",
+            "volume": 1,
+            "price": 3800,
+            "offset": "开",
+            "gateway_name": "CTP",
+            "trigger_type": "price_below",
+            "trigger_price": 3750,
+        }, headers=auth_headers)
+        order_id = create_resp.json()["id"]
+
+        # 取消条件单
+        resp = client.post(f"/api/trading/conditional/{order_id}/cancel", headers=auth_headers)
+        assert resp.status_code == 200
+        assert "已取消" in resp.json()["message"]
+
+    def test_conditional_order_cancel_all(self, client, auth_headers):
+        """取消所有条件单"""
+        resp = client.post("/api/trading/conditional/cancel-all", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "count" in data
+        assert "已取消" in data["message"]
