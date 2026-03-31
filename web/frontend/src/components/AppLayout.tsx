@@ -3,7 +3,8 @@ import { Layout, Nav, Avatar, Dropdown, Typography } from '@douyinfe/semi-ui';
 import {
   IconHome, IconLineChartStroked, IconSort, IconBulb,
   IconHistogram, IconFolder, IconSetting, IconSafe,
-  IconHistory, IconBolt, IconDesktop, IconEdit, IconLink
+  IconHistory, IconBolt, IconDesktop, IconEdit, IconLink,
+  IconAlertCircle
 } from '@douyinfe/semi-icons';
 import { useAuthStore } from '../stores/authStore';
 import ThemeToggle from './ThemeToggle';
@@ -15,6 +16,7 @@ const menuItems = [
   { itemKey: '/market', text: '行情中心', icon: <IconLineChartStroked /> },
   { itemKey: '/contracts', text: '合约管理', icon: <IconFolder /> },
   { itemKey: '/trading', text: '交易面板', icon: <IconSort /> },
+  { itemKey: '/stop-orders', text: '条件单监控', icon: <IconAlertCircle /> },
   { itemKey: '/strategy', text: '策略管理', icon: <IconBulb /> },
   { itemKey: '/editor', text: '策略编辑器', icon: <IconEdit /> },
   { itemKey: '/backtest', text: '回测中心', icon: <IconHistogram /> },

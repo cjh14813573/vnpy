@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage';
 import MarketPage from './pages/MarketPage';
 import ContractManagerPage from './pages/ContractManagerPage';
 import TradingPage from './pages/TradingPage';
+import StopOrderMonitorPage from './pages/StopOrderMonitorPage';
 import StrategyPage from './pages/StrategyPage';
 import StrategyDetailPage from './pages/StrategyDetailPage';
 import BacktestPage from './pages/BacktestPage';
@@ -41,6 +42,7 @@ function AppContent() {
               <Route path="market" element={<MarketPage />} />
               <Route path="contracts" element={<ContractManagerPage />} />
               <Route path="trading" element={<TradingPage />} />
+              <Route path="stop-orders" element={<StopOrderMonitorPage />} />
               <Route path="strategy" element={<StrategyPage />} />
               <Route path="strategy/:name" element={<StrategyDetailPage />} />
               <Route path="backtest" element={<BacktestPage />} />
