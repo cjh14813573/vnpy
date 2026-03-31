@@ -57,12 +57,12 @@
 - `GET /api/market/contracts/{vt_symbol}/detail` - 合约详情
 
 **开发任务**:
-- [ ] 后端: 合约搜索接口（支持分页、筛选）
-- [ ] 后端: 合约详情接口
-- [ ] 前端: ContractManager 组件
-- [ ] 前端: 集成到行情页面作为弹窗
+- [x] 后端: 合约搜索接口（支持分页、筛选）
+- [x] 后端: 合约详情接口
+- [x] 前端: ContractManager 组件
+- [x] 前端: 集成到行情页面作为弹窗
 
-**预计工时**: 1.5 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -88,11 +88,11 @@
 - `GET /api/strategy/stop-orders?status={}&strategy={}`
 
 **开发任务**:
-- [ ] 后端: 条件单查询接口
-- [ ] 前端: StopOrderMonitor 页面
-- [ ] 前端: 添加到侧边栏菜单
+- [x] 后端: 条件单查询接口
+- [x] 前端: StopOrderMonitor 页面
+- [x] 前端: 添加到侧边栏菜单
 
-**预计工时**: 1 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -120,11 +120,11 @@
 ```
 
 **开发任务**:
-- [ ] 前端: StrategyDetailPage 添加变量 Tab
-- [ ] 前端: useVariables  Hook (轮询获取)
-- [ ] 前端: 变量变化高亮动画
+- [x] 前端: StrategyDetailPage 添加变量 Tab
+- [x] 前端: useVariables  Hook (轮询获取)
+- [x] 前端: 变量变化高亮动画
 
-**预计工时**: 1 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -144,11 +144,11 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 - `POST /api/algo/batch-import` - multipart/form-data
 
 **开发任务**:
-- [ ] 后端: CSV 解析和批量创建接口
-- [ ] 前端: CSV 上传组件
-- [ ] 前端: 导入预览和确认
+- [x] 后端: CSV 解析和批量创建接口
+- [x] 前端: CSV 上传组件
+- [x] 前端: 导入预览和确认
 
-**预计工时**: 1.5 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
