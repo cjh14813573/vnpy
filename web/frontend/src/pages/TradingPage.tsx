@@ -330,6 +330,9 @@ export default function TradingPage() {
     return accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
   }, [accounts]);
 
+  // 从 WebSocket 获取实时盈亏数据
+  const pnlData = useRealtimeStore(s => s.pnl);
+
   // 连接状态指示器
   const ConnectionIndicator = () => (
     <Tag
@@ -417,6 +420,58 @@ export default function TradingPage() {
             <Typography.Text type="tertiary" size="small" style={{ marginTop: 8, display: 'block' }}>
               共 {accounts.length} 个账户
             </Typography.Text>
+          </Card>
+        </Col>
+
+        {/* 实时盈亏卡片 */}
+        <Col span={6}>
+          <Card
+            bodyStyle={{ padding: 16 }}
+            style={{
+              borderRadius: 12,
+              background: pnlData?.summary?.total_pnl && pnlData.summary.total_pnl >= 0
+                ? 'rgba(245, 34, 45, 0.05)'
+                : 'rgba(82, 196, 26, 0.05)',
+            }}
+          >
+            <Typography.Text type="tertiary" style={{ display: 'block', marginBottom: 8 }}>
+              实时盈亏 (WebSocket)
+            </Typography.Text>
+            <div style={{
+              fontSize: 28,
+              fontWeight: 700,
+              color: pnlData?.summary?.total_pnl && pnlData.summary.total_pnl >= 0 ? '#f5222d' : '#52c41a'
+            }}>
+              {pnlData?.summary?.total_pnl
+                ? `${pnlData.summary.total_pnl >= 0 ? '+' : ''}¥${pnlData.summary.total_pnl.toFixed(2)}`
+                : '--'}
+            </div>
+            <Row style={{ marginTop: 8 }} gutter={8}>
+              <Col span={12}>
+                <Typography.Text type="tertiary" size="small">浮动盈亏</Typography.Text>
+                <br />
+                <Typography.Text
+                  strong
+                  style={{ color: (pnlData?.summary?.total_unrealized_pnl || 0) >= 0 ? '#f5222d' : '#52c41a' }}
+                >
+                  {pnlData?.summary?.total_unrealized_pnl
+                    ? `${pnlData.summary.total_unrealized_pnl >= 0 ? '+' : ''}¥${pnlData.summary.total_unrealized_pnl.toFixed(2)}`
+                    : '--'}
+                </Typography.Text>
+              </Col>
+              <Col span={12}>
+                <Typography.Text type="tertiary" size="small">已实现盈亏</Typography.Text>
+                <br />
+                <Typography.Text
+                  strong
+                  style={{ color: (pnlData?.summary?.total_realized_pnl || 0) >= 0 ? '#f5222d' : '#52c41a' }}
+                >
+                  {pnlData?.summary?.total_realized_pnl
+                    ? `${pnlData.summary.total_realized_pnl >= 0 ? '+' : ''}¥${pnlData.summary.total_realized_pnl.toFixed(2)}`
+                    : '--'}
+                </Typography.Text>
+              </Col>
+            </Row>
           </Card>
         </Col>
       </Row>

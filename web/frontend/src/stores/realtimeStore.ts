@@ -103,6 +103,45 @@ export interface BacktestProgress {
   message: string;
 }
 
+export interface PnLPosition {
+  vt_symbol: string;
+  volume: number;
+  direction: string;
+  avg_price: number;
+  last_price: number;
+  unrealized_pnl: number;
+  realized_pnl: number;
+  total_pnl: number;
+  is_paper: boolean;
+}
+
+export interface PnLAccount {
+  gateway_name: string;
+  accountid: string;
+  account_type: 'real' | 'paper';
+  balance: number;
+  available: number;
+  frozen: number;
+  margin: number;
+  is_paper: boolean;
+}
+
+export interface PnLSummary {
+  total_balance: number;
+  total_available: number;
+  total_margin: number;
+  total_realized_pnl: number;
+  total_unrealized_pnl: number;
+  total_pnl: number;
+}
+
+export interface PnLData {
+  timestamp: number;
+  summary: PnLSummary;
+  accounts: PnLAccount[];
+  positions: PnLPosition[];
+}
+
 interface RealtimeState {
   // 数据存储
   ticks: Record<string, TickData>;
@@ -117,6 +156,9 @@ interface RealtimeState {
   connectionState: 'connected' | 'connecting' | 'disconnected';
   backtestProgress: Record<string, BacktestProgress>;
 
+  // 盈亏数据
+  pnl: PnLData | null;
+
   // 操作方法
   updateTick: (vtSymbol: string, tick: TickData) => void;
   updateOrder: (vtOrderId: string, order: OrderData) => void;
@@ -127,6 +169,7 @@ interface RealtimeState {
   updateContract: (vtSymbol: string, contract: ContractData) => void;
   setConnectionState: (state: 'connected' | 'connecting' | 'disconnected') => void;
   setBacktestProgress: (taskId: string, progress: number, message: string) => void;
+  updatePnL: (data: PnLData) => void;
 
   // 批量更新
   setTicks: (ticks: Record<string, TickData>) => void;
@@ -153,6 +196,7 @@ export const useRealtimeStore = create<RealtimeState>((set) => ({
   contracts: {},
   connectionState: 'disconnected',
   backtestProgress: {},
+  pnl: null,
 
   // 单个更新
   updateTick: (vtSymbol, tick) =>
@@ -199,6 +243,8 @@ export const useRealtimeStore = create<RealtimeState>((set) => ({
         [taskId]: { task_id: taskId, progress, message },
       },
     })),
+
+  updatePnL: (data) => set({ pnl: data }),
 
   // 批量更新
   setTicks: (ticks) => set({ ticks }),

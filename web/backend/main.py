@@ -14,6 +14,7 @@ from bridge import bridge
 from ws_manager import ws_manager
 from services.backtest_runner import backtest_runner
 from services.rate_limiter import rate_limiter
+from services.pnl_calculator import pnl_calculator
 from dependencies import RateLimitMiddleware
 
 from routers.system import router as system_router
@@ -80,7 +81,13 @@ async def lifespan(app: FastAPI):
         # 下单接口限制
         rate_limiter.set_endpoint_limit("POST", "/api/trading/order", 5, 10)
 
+    # 启动实时盈亏计算器
+    pnl_calculator.start()
+
     yield
+
+    # 清理：停止盈亏计算器
+    pnl_calculator.stop()
 
     # 清理：取消所有运行中的回测任务
     for task in backtest_runner.get_all_tasks(status="running"):

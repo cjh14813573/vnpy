@@ -193,6 +193,9 @@ class WebSocketService {
         case 'backtest_progress':
           store.setBacktestProgress(msg.task_id, msg.progress, msg.message);
           break;
+        case 'pnl_update':
+          store.updatePnL(msg.data);
+          break;
         case 'pong':
           // 心跳响应
           break;
