@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Typography, Card, Input, Select, Button, Row, Col, Toast,
   Table, Progress, Tag, Space, Tabs, Empty, Spin, Divider, Modal
@@ -9,12 +9,13 @@ import {
 } from '@douyinfe/semi-icons';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
-import { backtestApi } from '../api';
+import { backtestApi, marketApi } from '../api';
+import KLineChart, { type KLineData, type TradeMarker } from '../components/KLineChart';
 import { useRealtimeStore } from '../stores/realtimeStore';
 import { useWebSocket } from '../services/websocket';
 import type { BacktestTask, BacktestTaskStatus } from '../api/types';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { TabPane } = Tabs;
 
 // 状态标签映射
@@ -59,14 +60,15 @@ export default function BacktestPage() {
     rate: '0.0001', slippage: '0', size: '1', capital: '1000000',
     param_name: '', param_start: '', param_end: '', param_step: '',
   });
-  const [optimizeResults, setOptimizeResults] = useState<any[]>([]);
+  const [optimizeResults] = useState<any[]>([]);
   const [optimizeLoading, setOptimizeLoading] = useState(false);
 
   // K线数据状态
-  const [candleData, setCandleData] = useState<any[]>([]);
-  const [tradesData, setTradesData] = useState<any[]>([]);
+  const [candleData, setCandleData] = useState<KLineData[]>([]);
+  const [tradeMarkers, setTradeMarkers] = useState<TradeMarker[]>([]);
   const [showCandleModal, setShowCandleModal] = useState(false);
   const [candleLoading, setCandleLoading] = useState(false);
+  const [candleSymbol, setCandleSymbol] = useState('');
 
   // 加载策略类和任务列表
   useEffect(() => {
@@ -107,7 +109,7 @@ export default function BacktestPage() {
     }
 
     try {
-      const res = await backtestApi.createTask({
+      await backtestApi.createTask({
         class_name: form.class_name,
         vt_symbol: form.vt_symbol,
         interval: form.interval,
@@ -178,7 +180,7 @@ export default function BacktestPage() {
       }
       paramRanges[optimizeForm.param_name] = values;
 
-      const res = await backtestApi.createOptimizeTask({
+      await backtestApi.createOptimizeTask({
         class_name: optimizeForm.class_name,
         vt_symbol: optimizeForm.vt_symbol,
         interval: optimizeForm.interval,
@@ -205,26 +207,55 @@ export default function BacktestPage() {
   const openCandleChart = async (task: BacktestTask) => {
     setShowCandleModal(true);
     setCandleLoading(true);
+    setCandleSymbol(task.vt_symbol || '');
     try {
-      // 获取历史K线数据（模拟）
-      // 实际应该从后端获取真实K线数据
-      const mockCandles = generateMockCandles(task.vt_symbol || 'rb2410.SHFE');
-      setCandleData(mockCandles);
+      // 获取历史K线数据
+      const historyRes = await marketApi.history({
+        vt_symbol: task.vt_symbol || '',
+        interval: task.interval || '1m',
+        start: task.start_date || '',
+        end: task.end_date || '',
+      });
+
+      const bars = historyRes.data?.bars || [];
+      const klineData: KLineData[] = bars.map((bar: any) => ({
+        time: bar.datetime || bar.date,
+        open: bar.open_price || bar.open,
+        high: bar.high_price || bar.high,
+        low: bar.low_price || bar.low,
+        close: bar.close_price || bar.close,
+        volume: bar.volume,
+      }));
+
+      setCandleData(klineData);
 
       // 获取交易记录作为标记
       if (task.result?.trades) {
-        setTradesData(task.result.trades);
+        const markers: TradeMarker[] = task.result.trades.map((trade: any) => ({
+          time: trade.datetime || trade.date,
+          price: trade.price,
+          direction: trade.direction === '多' || trade.offset === '开' ? 'buy' :
+                     trade.direction === '空' || trade.offset === '开' ? 'short' :
+                     trade.direction === '多' || trade.offset === '平' ? 'sell' : 'cover',
+        }));
+        setTradeMarkers(markers);
+      } else {
+        setTradeMarkers([]);
       }
     } catch (err) {
       Toast.error('加载K线数据失败');
+      // 使用模拟数据作为后备
+      const mockCandles = generateMockCandles(task.vt_symbol || 'rb2410.SHFE');
+      setCandleData(mockCandles);
+      setTradeMarkers([]);
     } finally {
       setCandleLoading(false);
     }
   };
 
   // 生成模拟K线数据
-  const generateMockCandles = (vtSymbol: string) => {
-    const candles = [];
+  const generateMockCandles = (_vtSymbol: string): KLineData[] => {
+    const candles: KLineData[] = [];
     let price = 3500;
     const start = new Date('2024-01-01');
     for (let i = 0; i < 100; i++) {
@@ -238,7 +269,7 @@ export default function BacktestPage() {
       const volume = Math.floor(Math.random() * 10000) + 5000;
 
       candles.push({
-        date: date.toISOString().split('T')[0],
+        time: date.toISOString().split('T')[0],
         open,
         high,
         low,
@@ -273,7 +304,7 @@ export default function BacktestPage() {
       dataIndex: 'status',
       width: 100,
       render: (v: BacktestTaskStatus) => (
-        <Tag color={statusMap[v]?.color || 'default'}>{statusMap[v]?.label || v}</Tag>
+        <Tag color={statusMap[v]?.color as any || 'grey'}>{statusMap[v]?.label || v}</Tag>
       ),
     },
     {
@@ -359,7 +390,7 @@ export default function BacktestPage() {
         </Tag>
       </Title>
 
-      <Tabs activeKey={activeTab} onChange={setActiveTab} lazy>
+      <Tabs activeKey={activeTab} onChange={setActiveTab}>
         <TabPane
           tab={<span><IconList style={{ marginRight: 4 }} />任务列表</span>}
           itemKey="tasks"
@@ -501,7 +532,7 @@ export default function BacktestPage() {
                       {selectedTask.class_name} / {selectedTask.vt_symbol} / {selectedTask.interval}
                     </p>
                   </div>
-                  <Tag color={statusMap[selectedTask.status]?.color}>
+                  <Tag color={statusMap[selectedTask.status]?.color as any}>
                     {statusMap[selectedTask.status]?.label}
                   </Tag>
                 </div>
@@ -615,7 +646,7 @@ export default function BacktestPage() {
                   theme="solid"
                   block
                   size="large"
-                  icon={<IconOptimize />}
+                  icon={<IconSetting />}
                   loading={optimizeLoading}
                   onClick={handleCreateOptimizeTask}
                   disabled={!optimizeForm.class_name || !optimizeForm.vt_symbol}
@@ -654,58 +685,41 @@ export default function BacktestPage() {
 
       {/* K线图表Modal */}
       <Modal
-        title="K线图表"
+        title={`K线图表 - ${candleSymbol}`}
         visible={showCandleModal}
         onCancel={() => setShowCandleModal(false)}
         footer={null}
-        width={1000}
-        height={600}
+        width={1100}
+        centered
       >
         {candleLoading ? (
           <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
         ) : (
-          <ReactECharts
-            option={{
-              title: { text: 'K线图表', left: 'center' },
-              tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-              grid: { left: '5%', right: '5%', bottom: '15%', top: '15%' },
-              xAxis: {
-                type: 'category',
-                data: candleData.map(d => d.date),
-                axisLabel: { rotate: 45 },
-              },
-              yAxis: {
-                type: 'value',
-                scale: true,
-              },
-              dataZoom: [
-                { type: 'inside', start: 0, end: 100 },
-                { type: 'slider', start: 0, end: 100, bottom: 10 },
-              ],
-              series: [
-                {
-                  name: 'K线',
-                  type: 'candlestick',
-                  data: candleData.map(d => [d.open, d.close, d.low, d.high]),
-                  itemStyle: {
-                    color: '#ef4444',
-                    color0: '#10b981',
-                    borderColor: '#ef4444',
-                    borderColor0: '#10b981',
-                  },
-                },
-                {
-                  name: '成交量',
-                  type: 'bar',
-                  xAxisIndex: 0,
-                  yAxisIndex: 0,
-                  data: candleData.map(d => d.volume),
-                  itemStyle: { color: 'rgba(100, 100, 100, 0.3)' },
-                },
-              ],
-            }}
-            style={{ height: 500 }}
-          />
+          <div>
+            <KLineChart
+              data={candleData}
+              trades={tradeMarkers}
+              height={500}
+            />
+            <div style={{ marginTop: 16, display: 'flex', gap: 24, justifyContent: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 12, height: 12, background: '#f5222d', borderRadius: 2 }}></span>
+                涨
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 12, height: 12, background: '#52c41a', borderRadius: 2 }}></span>
+                跌
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: '#f5222d' }}>↑</span>
+                买开/买平
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: '#52c41a' }}>↓</span>
+                卖开/卖平
+              </span>
+            </div>
+          </div>
         )}
       </Modal>
     </div>

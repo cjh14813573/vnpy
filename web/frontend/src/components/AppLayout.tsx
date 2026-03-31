@@ -3,7 +3,7 @@ import { Layout, Nav, Avatar, Dropdown, Typography } from '@douyinfe/semi-ui';
 import {
   IconHome, IconLineChartStroked, IconSort, IconBulb,
   IconHistogram, IconFolder, IconSetting, IconSafe,
-  IconHistory, IconBolt, IconDesktop, IconEdit, IconBrain
+  IconHistory, IconBolt, IconDesktop, IconEdit, IconLink
 } from '@douyinfe/semi-icons';
 import { useAuthStore } from '../stores/authStore';
 import ThemeToggle from './ThemeToggle';
@@ -20,8 +20,9 @@ const menuItems = [
   { itemKey: '/data', text: '数据管理', icon: <IconFolder /> },
   { itemKey: '/risk', text: '风控设置', icon: <IconSafe /> },
   { itemKey: '/algo', text: '算法交易', icon: <IconDesktop /> },
-  { itemKey: '/ml', text: '机器学习', icon: <IconBrain /> },
+  { itemKey: '/ml', text: '机器学习', icon: <IconBulb /> },
   { itemKey: '/paper', text: '模拟交易', icon: <IconBolt /> },
+  { itemKey: '/gateway', text: '网关管理', icon: <IconLink /> },
   { itemKey: '/logs', text: '操作日志', icon: <IconHistory /> },
   { itemKey: '/settings', text: '系统设置', icon: <IconSetting /> },
 ];

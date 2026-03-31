@@ -19,7 +19,7 @@ export default function DataPage() {
   const [loading, setLoading] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [contractsLoading, setContractsLoading] = useState(false);
+  const [, setContractsLoading] = useState(false);
   const [dlForm, setDlForm] = useState({
     vt_symbol: '',
     start: '2024-01-01',
@@ -184,7 +184,7 @@ export default function DataPage() {
       <Modal
         title="下载历史数据"
         visible={downloadOpen}
-        onCancel={() => !downloading && setDownloadOpen(false)}
+        onCancel={() => { if (!downloading) setDownloadOpen(false); }}
         footer={null}
         style={{ borderRadius: 12 }}
       >

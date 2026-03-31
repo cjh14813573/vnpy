@@ -1,15 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Typography, Card, Button, Select, Row, Col, Toast, Space,
   SplitButtonGroup, Dropdown, Modal, Input, Tabs, Badge
 } from '@douyinfe/semi-ui';
 import {
-  IconSave, IconPlay, IconPlus, IconHistory, IconSetting,
-  IconCode, IconChevronDown
+  IconSave, IconPlay, IconPlus, IconChevronDown
 } from '@douyinfe/semi-icons';
 import Editor from '@monaco-editor/react';
-import { strategyApi, backtestApi } from '../api';
+import { strategyApi } from '../api';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -52,7 +51,7 @@ export default function EditorPage() {
   const [classes, setClasses] = useState<string[]>([]);
 
   // UI 状态
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState('');
@@ -402,19 +401,17 @@ export default function EditorPage() {
             <TabPane tab="模板" itemKey="templates">
               <Space vertical style={{ width: '100%' }}>
                 {templates.map((tpl) => (
-                  <Card
-                    key={tpl.name}
-                    style={{ borderRadius: 8, cursor: 'pointer' }}
-                    onClick={() => {
-                      setSelectedTemplate(tpl.name);
-                      setNewStrategyName(`My${tpl.name}`);
-                      setShowNewModal(true);
-                    }}
-                  >
-                    <Text strong>{tpl.display_name}</Text>
-                    <br />
-                    <Text type="tertiary" size="small">{tpl.description}</Text>
-                  </Card>
+                  <div key={tpl.name} onClick={() => {
+                    setSelectedTemplate(tpl.name);
+                    setNewStrategyName(`My${tpl.name}`);
+                    setShowNewModal(true);
+                  }}>
+                    <Card style={{ borderRadius: 8, cursor: 'pointer' }}>
+                      <Text strong>{tpl.display_name}</Text>
+                      <br />
+                      <Text type="tertiary" size="small">{tpl.description}</Text>
+                    </Card>
+                  </div>
                 ))}
               </Space>
             </TabPane>
@@ -443,7 +440,7 @@ export default function EditorPage() {
           <Text strong>选择模板</Text>
           <Select
             value={selectedTemplate}
-            onChange={setSelectedTemplate}
+            onChange={(v) => setSelectedTemplate(v as string)}
             style={{ width: '100%', marginTop: 8 }}
             placeholder="选择模板"
             optionList={templates.map(t => ({

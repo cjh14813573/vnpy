@@ -140,6 +140,16 @@ export const mlApi = {
   deleteModel: (name: string) => client.delete(`/api/ml/models/${name}`),
 };
 
+// ============ 策略编辑器 ============
+export const editorApi = {
+  getTemplates: () => client.get('/api/editor/templates'),
+  getStrategyCode: (className: string) => client.get(`/api/editor/strategy/${className}`),
+  saveStrategyCode: (className: string, content: string) =>
+    client.post(`/api/editor/strategy/${className}/save`, { class_name: className, content }),
+  runBacktest: (className: string, params: Record<string, any>) =>
+    client.post(`/api/editor/strategy/${className}/run-backtest`, params),
+};
+
 // ============ 操作日志 ============
 export const logsApi = {
   query: (params?: Record<string, any>) => client.get('/api/logs/operations', { params }),

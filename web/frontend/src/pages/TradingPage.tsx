@@ -7,8 +7,8 @@ import { useWebSocket, wsService } from '../services/websocket';
 import type { Contract } from '../api/types';
 
 export default function TradingPage() {
-  const { orders, trades, positions, ticks, contracts: realtimeContracts, connectionState } = useRealtimeStore();
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const { orders, trades, positions, ticks, connectionState } = useRealtimeStore();
+  const [, setAccounts] = useState<any[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
@@ -223,7 +223,7 @@ export default function TradingPage() {
               <Select
                 placeholder="请选择合约"
                 value={selectedContract?.vt_symbol || ''}
-                onChange={handleSelectContract}
+                onChange={(v) => handleSelectContract(v as string)}
                 style={{ width: '100%', marginBottom: 12 }}
                 optionList={contracts.map(c => ({
                   value: c.vt_symbol,

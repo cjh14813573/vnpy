@@ -226,7 +226,7 @@ export default function DashboardPage() {
             <Col span={6}>
               <StatCard
                 title="持仓数量"
-                value={positions.length}
+                value={Object.keys(positions).length}
                 color="blue"
               />
             </Col>

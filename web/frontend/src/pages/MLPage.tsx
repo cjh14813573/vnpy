@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Typography, Card, Button, Input, Select, Row, Col, Toast, Space, Table, Tag, Progress, Modal, Descriptions } from '@douyinfe/semi-ui';
-import { IconPlus, IconPlay, IconDelete, IconEye } from '@douyinfe/semi-icons';
+import { Typography, Card, Button, Input, Select, Row, Col, Toast, Space, Table, Modal, Descriptions } from '@douyinfe/semi-ui';
+import { IconPlus, IconPlay, IconDelete } from '@douyinfe/semi-icons';
 import { mlApi } from '../api';
 
 const { Title, Text } = Typography;
@@ -59,7 +59,7 @@ export default function MLPage() {
 
     setLoading(true);
     try {
-      const res = await mlApi.trainModel({
+      await mlApi.trainModel({
         name: trainForm.name,
         model_type: trainForm.model_type,
         vt_symbol: trainForm.vt_symbol,
@@ -115,7 +115,7 @@ export default function MLPage() {
       title: '操作',
       render: (_: any, record: MLModel) => (
         <Space>
-          <Button icon={<IconEye />} size="small" onClick={() => viewDetail(record)}>详情</Button>
+          <Button icon={<IconPlay />} size="small" onClick={() => viewDetail(record)}>详情</Button>
           <Button icon={<IconDelete />} type="danger" size="small" onClick={() => handleDelete(record.name)}>删除</Button>
         </Space>
       ),

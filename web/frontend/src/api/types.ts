@@ -125,6 +125,7 @@ export interface BacktestResult {
   winning_trades: number;
   losing_trades: number;
   win_rate: number;
+  trades?: any[];
 }
 
 export type BacktestTaskType = 'backtest' | 'optimize' | 'download';

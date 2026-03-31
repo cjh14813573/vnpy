@@ -7,6 +7,7 @@ import {
 import { IconLock, IconKey, IconCode } from '@douyinfe/semi-icons';
 import { strategyApi } from '../api';
 import type { StrategyInstance } from '../api/types';
+import StrategyCodeViewer from '../components/StrategyCodeViewer';
 
 const { Title, Text } = Typography;
 
@@ -30,10 +31,8 @@ export default function StrategyPage() {
   const [editSetting, setEditSetting] = useState<Record<string, string>>({});
 
   // 源码查看状态
-  const [codeOpen, setCodeOpen] = useState(false);
-  const [codeContent, setCodeContent] = useState('');
-  const [codeClassName, setCodeClassName] = useState('');
-  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeViewerOpen, setCodeViewerOpen] = useState(false);
+  const [codeViewerClassName, setCodeViewerClassName] = useState('');
 
   const load = async () => {
     try {
@@ -159,18 +158,14 @@ export default function StrategyPage() {
   };
 
   // 查看源码
-  const openCodeView = async (className: string) => {
-    setCodeClassName(className);
-    setCodeOpen(true);
-    setCodeLoading(true);
-    try {
-      const res = await strategyApi.classCode(className);
-      setCodeContent(res.data.code || '无法加载源码');
-    } catch (err: any) {
-      setCodeContent(err.response?.data?.detail || '加载源码失败');
-    } finally {
-      setCodeLoading(false);
-    }
+  const openCodeView = (className: string) => {
+    setCodeViewerClassName(className);
+    setCodeViewerOpen(true);
+  };
+
+  // 跳转到编辑器
+  const handleEditInEditor = (className: string) => {
+    navigate(`/editor/${className}`);
   };
 
   const statusColor = (s: StrategyInstance) => s.trading ? 'green' : s.inited ? 'blue' : 'grey';
@@ -299,24 +294,25 @@ export default function StrategyPage() {
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {classes.map((cls) => (
           <Col span={6} key={cls}>
-            <Card
-              bodyStyle={{ padding: 16 }}
-              style={{ borderRadius: 12 }}
-              actions={[
-                <Button theme="borderless" icon={<IconCode />} onClick={(e) => { e.stopPropagation(); openCodeView(cls); }}>
-                  源码
-                </Button>
-              ]}
-              onClick={() => {
-                setAddForm({ ...addForm, class_name: cls });
-                handleClassChange(cls);
-                setAddOpen(true);
-              }}
-            >
-              <Text strong>{cls}</Text>
-              <br />
-              <Text type="tertiary" size="small">CTA 策略模板</Text>
-            </Card>
+            <div onClick={() => {
+              setAddForm({ ...addForm, class_name: cls });
+              handleClassChange(cls);
+              setAddOpen(true);
+            }}>
+              <Card
+                bodyStyle={{ padding: 16 }}
+                style={{ borderRadius: 12 }}
+                actions={[
+                  <Button theme="borderless" icon={<IconCode />} onClick={(e) => { e.stopPropagation(); openCodeView(cls); }}>
+                    源码
+                  </Button>
+                ]}
+              >
+                <Text strong>{cls}</Text>
+                <br />
+                <Text type="tertiary" size="small">CTA 策略模板</Text>
+              </Card>
+            </div>
           </Col>
         ))}
       </Row>
@@ -445,32 +441,13 @@ export default function StrategyPage() {
         </div>
       </Modal>
 
-      {/* 源码查看对话框 */}
-      <Modal
-        title={`策略源码 - ${codeClassName}`}
-        visible={codeOpen}
-        onCancel={() => setCodeOpen(false)}
-        footer={null}
-        style={{ borderRadius: 12 }}
-        width={900}
-        height={600}
-      >
-        <pre
-          style={{
-            background: '#1e1e1e',
-            color: '#d4d4d4',
-            padding: 16,
-            borderRadius: 8,
-            overflow: 'auto',
-            maxHeight: 500,
-            fontSize: 13,
-            fontFamily: 'monospace',
-            lineHeight: 1.5,
-          }}
-        >
-          {codeLoading ? '加载中...' : codeContent}
-        </pre>
-      </Modal>
+      {/* 源码查看组件 */}
+      <StrategyCodeViewer
+        className={codeViewerClassName}
+        visible={codeViewerOpen}
+        onClose={() => setCodeViewerOpen(false)}
+        onEdit={handleEditInEditor}
+      />
     </div>
   );
 }

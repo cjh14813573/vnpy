@@ -1,99 +1,216 @@
-import { useRef } from 'react';
-import ReactECharts from 'echarts-for-react';
-import type { EChartsOption } from 'echarts';
+import { useEffect, useRef, useCallback } from 'react';
+import { createChart, CandlestickSeries, HistogramSeries, createSeriesMarkers, type IChartApi, type ISeriesApi, type CandlestickData, type Time, type SeriesMarker } from 'lightweight-charts';
 
-interface KLineBar {
-  datetime: string;
-  open_price: number;
-  high_price: number;
-  low_price: number;
-  close_price: number;
-  volume: number;
-  turnover: number;
+export interface KLineData {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+export interface TradeMarker {
+  time: string;
+  price: number;
+  direction: 'buy' | 'sell' | 'short' | 'cover';
 }
 
 interface KLineChartProps {
-  data: KLineBar[];
-  title?: string;
+  data: KLineData[];
+  trades?: TradeMarker[];
+  height?: number;
+  onCrosshairMove?: (data: { time?: string; open?: number; high?: number; low?: number; close?: number }) => void;
 }
 
-export default function KLineChart({ data, title = 'K线图' }: KLineChartProps) {
-  const chartRef = useRef<ReactECharts>(null);
+export default function KLineChart({
+  data,
+  trades = [],
+  height = 400,
+  onCrosshairMove,
+}: KLineChartProps) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const markersPluginRef = useRef<ReturnType<typeof createSeriesMarkers<Time>> | null>(null);
 
-  // 转换为 ECharts K线格式: [open, close, low, high]
-  const candleData = data.map((d) => [d.open_price, d.close_price, d.low_price, d.high_price]);
-  const dates = data.map((d) => d.datetime?.slice(0, 16) || '');
-  const volumes = data.map((d) => d.volume);
-  const colors = data.map((d) => d.close_price >= d.open_price ? '#ef5350' : '#26a69a');
+  // 转换时间格式
+  const parseTime = useCallback((timeStr: string): Time => {
+    // 处理 YYYY-MM-DD 格式
+    if (timeStr.includes('-') && timeStr.length === 10) {
+      const date = new Date(timeStr);
+      return date.getTime() / 1000 as Time;
+    }
+    // 处理时间戳
+    const timestamp = parseInt(timeStr);
+    if (!isNaN(timestamp)) {
+      return (timestamp > 1e10 ? timestamp / 1000 : timestamp) as Time;
+    }
+    return timeStr as Time;
+  }, []);
 
-  const option: EChartsOption = {
-    title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'cross' },
-      formatter: (params: any) => {
-        if (!params || !params.length) return '';
-        const idx = params[0].dataIndex;
-        const bar = data[idx];
-        if (!bar) return '';
-        return `<b>${dates[idx]}</b><br/>
-          开: ${bar.open_price}  高: ${bar.high_price}<br/>
-          低: ${bar.low_price}  收: ${bar.close_price}<br/>
-          量: ${bar.volume}`;
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    // 创建图表
+    const chart = createChart(chartContainerRef.current, {
+      height,
+      layout: {
+        background: { color: 'transparent' },
+        textColor: 'var(--semi-color-text-0)',
       },
-    },
-    legend: { data: ['K线', '成交量'], top: 30 },
-    grid: [
-      { left: '8%', right: '3%', height: '55%' },
-      { left: '8%', right: '3%', top: '72%', height: '18%' },
-    ],
-    xAxis: [
-      { type: 'category', data: dates, gridIndex: 0, axisLabel: { fontSize: 10 } },
-      { type: 'category', data: dates, gridIndex: 1, axisLabel: { fontSize: 10 } },
-    ],
-    yAxis: [
-      { scale: true, gridIndex: 0, splitArea: { show: true } },
-      { scale: true, gridIndex: 1, splitNumber: 2 },
-    ],
-    dataZoom: [
-      { type: 'inside', xAxisIndex: [0, 1], start: Math.max(0, 100 - (500 / data.length) * 100), end: 100 },
-      { show: true, xAxisIndex: [0, 1], type: 'slider', top: '92%', height: 20 },
-    ],
-    series: [
-      {
-        name: 'K线',
-        type: 'candlestick',
-        data: candleData,
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        itemStyle: {
-          color: '#ef5350',
-          color0: '#26a69a',
-          borderColor: '#ef5350',
-          borderColor0: '#26a69a',
+      grid: {
+        vertLines: { color: 'var(--semi-color-border)' },
+        horzLines: { color: 'var(--semi-color-border)' },
+      },
+      crosshair: {
+        mode: 1,
+        vertLine: {
+          color: 'var(--semi-color-primary)',
+          labelBackgroundColor: 'var(--semi-color-primary)',
+        },
+        horzLine: {
+          color: 'var(--semi-color-primary)',
+          labelBackgroundColor: 'var(--semi-color-primary)',
         },
       },
-      {
-        name: '成交量',
-        type: 'bar',
-        data: volumes.map((v, i) => ({ value: v, itemStyle: { color: colors[i] } })),
-        xAxisIndex: 1,
-        yAxisIndex: 1,
+      rightPriceScale: {
+        borderColor: 'var(--semi-color-border)',
       },
-    ],
-  };
+      timeScale: {
+        borderColor: 'var(--semi-color-border)',
+        timeVisible: true,
+        secondsVisible: false,
+      },
+    });
+
+    chartRef.current = chart;
+
+    // 创建K线系列 - 红涨绿跌（中国股市习惯）
+    const candlestickSeries = chart.addSeries(CandlestickSeries, {
+      upColor: '#f5222d',
+      downColor: '#52c41a',
+      borderUpColor: '#f5222d',
+      borderDownColor: '#52c41a',
+      wickUpColor: '#f5222d',
+      wickDownColor: '#52c41a',
+    });
+    candlestickSeriesRef.current = candlestickSeries;
+
+    // 创建标记插件
+    const markersPlugin = createSeriesMarkers(candlestickSeries);
+    markersPluginRef.current = markersPlugin;
+
+    // 创建成交量系列
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '',
+    });
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    });
+    volumeSeriesRef.current = volumeSeries;
+
+    // 十字光标移动事件
+    if (onCrosshairMove) {
+      chart.subscribeCrosshairMove((param) => {
+        if (param.time) {
+          const data = param.seriesData.get(candlestickSeries) as CandlestickData;
+          if (data) {
+            onCrosshairMove({
+              time: param.time.toString(),
+              open: data.open,
+              high: data.high,
+              low: data.low,
+              close: data.close,
+            });
+          }
+        } else {
+          onCrosshairMove({});
+        }
+      });
+    }
+
+    // 响应式调整
+    const handleResize = () => {
+      if (chartContainerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({
+          width: chartContainerRef.current.clientWidth,
+        });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, [height, onCrosshairMove]);
+
+  // 更新数据
+  useEffect(() => {
+    if (!candlestickSeriesRef.current || !volumeSeriesRef.current || data.length === 0) return;
+
+    const chartData: CandlestickData[] = data.map((d) => ({
+      time: parseTime(d.time),
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
+    }));
+
+    const volumeData = data.map((d) => ({
+      time: parseTime(d.time),
+      value: d.volume || 0,
+      color: d.close >= d.open ? '#f5222d50' : '#52c41a50',
+    }));
+
+    candlestickSeriesRef.current.setData(chartData);
+    volumeSeriesRef.current.setData(volumeData);
+
+    // 添加交易标记
+    if (trades.length > 0) {
+      const markers: SeriesMarker<Time>[] = trades.map((trade) => ({
+        time: parseTime(trade.time),
+        position: trade.direction === 'buy' || trade.direction === 'cover' ? 'belowBar' : 'aboveBar',
+        color: trade.direction === 'buy' || trade.direction === 'cover' ? '#f5222d' : '#52c41a',
+        shape: trade.direction === 'buy' || trade.direction === 'cover' ? 'arrowUp' : 'arrowDown',
+        text: trade.direction === 'buy' ? '买开' : trade.direction === 'sell' ? '卖平' : trade.direction === 'short' ? '卖开' : '买平',
+        size: 2,
+      }));
+
+      markersPluginRef.current?.setMarkers(markers);
+    }
+
+    // 适应数据范围
+    chartRef.current?.timeScale().fitContent();
+  }, [data, trades, parseTime]);
 
   if (data.length === 0) {
-    return <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>暂无K线数据</div>;
+    return (
+      <div style={{ textAlign: 'center', padding: 40, color: 'var(--semi-color-text-2)' }}>
+        暂无K线数据
+      </div>
+    );
   }
 
   return (
-    <ReactECharts
-      ref={chartRef}
-      option={option}
-      style={{ height: 500, width: '100%' }}
-      notMerge
-      lazyUpdate
+    <div
+      ref={chartContainerRef}
+      style={{
+        width: '100%',
+        height,
+        borderRadius: 8,
+        overflow: 'hidden',
+      }}
     />
   );
 }

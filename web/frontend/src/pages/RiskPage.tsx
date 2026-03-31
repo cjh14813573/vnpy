@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Typography, Card, Switch, Input, Button, Toast, Row, Col, Space, Tag, Table, Empty, Spin } from '@douyinfe/semi-ui';
-import { IconRefresh, IconReset, IconShield } from '@douyinfe/semi-icons';
+import { IconRefresh, IconShield } from '@douyinfe/semi-icons';
 import { riskApi } from '../api';
 
 interface RiskRule {
@@ -129,7 +129,7 @@ export default function RiskPage() {
         </Typography.Title>
         <Space>
           <Button icon={<IconRefresh />} onClick={load} loading={loading}>刷新</Button>
-          <Button icon={<IconReset />} onClick={handleReset} type="warning">重置默认</Button>
+          <Button icon={<IconRefresh />} onClick={handleReset} type="warning">重置默认</Button>
         </Space>
       </div>
 

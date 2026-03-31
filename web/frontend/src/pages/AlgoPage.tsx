@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Typography, Card, Button, Table, Tag, Row, Col, Modal, Input, Select, Toast, Space,
-  Descriptions, Badge, Progress
+  Progress
 } from '@douyinfe/semi-ui';
 import { IconPlay, IconPause, IconStop, IconPlus } from '@douyinfe/semi-icons';
 import { algoApi } from '../api';
@@ -29,7 +28,6 @@ interface AlgoInstance {
 }
 
 export default function AlgoPage() {
-  const navigate = useNavigate();
   const [templates, setTemplates] = useState<AlgoTemplate[]>([]);
   const [algos, setAlgos] = useState<AlgoInstance[]>([]);
   const [loading, setLoading] = useState(false);
@@ -149,7 +147,7 @@ export default function AlgoPage() {
       case '已暂停': return 'orange';
       case '已完成': return 'blue';
       case '已停止': return 'grey';
-      default: return 'default';
+      default: return 'grey';
     }
   };
 
@@ -174,7 +172,7 @@ export default function AlgoPage() {
       title: '状态',
       dataIndex: 'status',
       width: 100,
-      render: (v: string) => <Tag color={statusColor(v)}>{v}</Tag>,
+      render: (v: string) => <Tag color={statusColor(v) as any}>{v}</Tag>,
     },
     {
       title: '操作',

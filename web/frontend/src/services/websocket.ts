@@ -18,8 +18,8 @@ const HEARTBEAT_INTERVAL = 30000;
 
 class WebSocketService {
   private ws: WebSocket | null = null;
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private heartbeatTimer: NodeJS.Timeout | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
   private subscriptions: Set<string> = new Set();
   private isConnecting = false;
   private token: string | null = null;
@@ -209,28 +209,29 @@ class WebSocketService {
 
   private handleEventMessage(topic: string, data: Record<string, unknown>) {
     const store = useRealtimeStore.getState();
+    const d = data as any;
 
     switch (topic) {
       case 'tick':
-        store.updateTick(data.vt_symbol, data);
+        store.updateTick(d.vt_symbol, d);
         break;
       case 'order':
-        store.updateOrder(data.vt_orderid, data);
+        store.updateOrder(d.vt_orderid, d);
         break;
       case 'trade':
-        store.addTrade(data);
+        store.addTrade(d);
         break;
       case 'position':
-        store.updatePosition(data.vt_symbol, data);
+        store.updatePosition(d.vt_symbol, d);
         break;
       case 'account':
-        store.updateAccount(data.vt_accountid, data);
+        store.updateAccount(d.vt_accountid, d);
         break;
       case 'log':
-        store.addLog(data);
+        store.addLog(d);
         break;
       case 'contract':
-        store.updateContract(data.vt_symbol, data);
+        store.updateContract(d.vt_symbol, d);
         break;
     }
   }

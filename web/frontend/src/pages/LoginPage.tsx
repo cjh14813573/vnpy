@@ -57,7 +57,7 @@ export default function LoginPage() {
             onChange={setPassword}
             style={{ marginBottom: 8 }}
           />
-          <Checkbox checked={remember} onChange={(checked) => setRemember(checked as boolean)} style={{ marginBottom: 24 }}>
+          <Checkbox checked={remember} onChange={(checked: any) => setRemember(Boolean(checked.target ? checked.target.checked : checked))} style={{ marginBottom: 24 }}>
             记住登录（7天）
           </Checkbox>
           <Button

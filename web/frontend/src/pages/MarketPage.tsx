@@ -99,10 +99,13 @@ export default function MarketPage() {
                   { title: '卖价', dataIndex: 'ap', render: (v: number) => <Typography.Text type="danger">{v}</Typography.Text> },
                   { title: '卖量', dataIndex: 'av', align: 'right' as const },
                 ]}
-                dataSource={[1,2,3,4,5].map((i) => ({
-                  key: i, bp: currentTick[`bid_price_${i}`], bv: currentTick[`bid_volume_${i}`],
-                  ap: currentTick[`ask_price_${i}`], av: currentTick[`ask_volume_${i}`],
-                }))}
+                dataSource={[1,2,3,4,5].map((i) => {
+                  const tick = currentTick as any;
+                  return {
+                    key: i, bp: tick[`bid_price_${i}`], bv: tick[`bid_volume_${i}`],
+                    ap: tick[`ask_price_${i}`], av: tick[`ask_volume_${i}`],
+                  };
+                })}
                 pagination={false} size="small" bordered={false}
               />
             </Card>
@@ -112,8 +115,21 @@ export default function MarketPage() {
 
       {historyData.length > 0 && (
         <>
+          <Typography.Title heading={5} style={{ marginBottom: 12 }}>
+            {selectedContract?.name || selectedContract?.vt_symbol} K线
+          </Typography.Title>
           <Card style={{ marginBottom: 20, borderRadius: 12, padding: 8 }}>
-            <KLineChart data={historyData} title={`${selectedContract?.name || selectedContract?.vt_symbol} K线`} />
+            <KLineChart
+              data={historyData.map((d: any) => ({
+                time: d.datetime || d.date,
+                open: d.open_price || d.open,
+                high: d.high_price || d.high,
+                low: d.low_price || d.low,
+                close: d.close_price || d.close,
+                volume: d.volume,
+              }))}
+              height={450}
+            />
           </Card>
         </>
       )}

@@ -15,6 +15,7 @@ import SettingsPage from './pages/SettingsPage';
 import LogsPage from './pages/LogsPage';
 import AlgoPage from './pages/AlgoPage';
 import PaperPage from './pages/PaperPage';
+import GatewayPage from './pages/GatewayPage';
 import EditorPage from './pages/EditorPage';
 import MLPage from './pages/MLPage';
 import { useThemeStore } from './stores/themeStore';
@@ -46,6 +47,7 @@ function AppContent() {
               <Route path="logs" element={<LogsPage />} />
               <Route path="algo" element={<AlgoPage />} />
               <Route path="paper" element={<PaperPage />} />
+              <Route path="gateway" element={<GatewayPage />} />
               <Route path="editor" element={<EditorPage />} />
               <Route path="editor/:className" element={<EditorPage />} />
               <Route path="ml" element={<MLPage />} />
