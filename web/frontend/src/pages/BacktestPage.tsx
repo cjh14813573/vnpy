@@ -1069,10 +1069,192 @@ function BacktestResultCharts({ result }: { result: BacktestResult }) {
     };
   }, [result.trades]);
 
+  const [resultTab, setResultTab] = useState('overview');
+
+  // 分笔成交表格列定义
+  const tradeColumns = [
+    {
+      title: '成交号',
+      dataIndex: 'tradeid',
+      width: 80,
+      render: (v: string, r: any, idx: number) => idx + 1,
+    },
+    {
+      title: '时间',
+      dataIndex: 'datetime',
+      width: 160,
+      render: (v: string) => v?.slice(0, 19) || '-',
+    },
+    {
+      title: '方向',
+      dataIndex: 'direction',
+      width: 70,
+      render: (v: string) => (
+        <Tag color={v === '多' ? 'red' : 'green'}>{v}</Tag>
+      ),
+    },
+    {
+      title: '开平',
+      dataIndex: 'offset',
+      width: 70,
+    },
+    {
+      title: '价格',
+      dataIndex: 'price',
+      width: 100,
+      align: 'right' as const,
+      render: (v: number) => v?.toFixed(2),
+    },
+    {
+      title: '数量',
+      dataIndex: 'volume',
+      width: 70,
+      align: 'right' as const,
+    },
+    {
+      title: '盈亏',
+      dataIndex: 'pnl',
+      width: 100,
+      align: 'right' as const,
+      render: (v: number) => v !== undefined ? (
+        <span style={{ color: v >= 0 ? '#f5222d' : '#52c41a' }}>
+          {v >= 0 ? '+' : ''}{v?.toFixed(2)}
+        </span>
+      ) : '-',
+    },
+  ];
+
+  // 日收益表格列定义
+  const dailyColumns = [
+    {
+      title: '日期',
+      dataIndex: 'date',
+      width: 120,
+    },
+    {
+      title: '当日盈亏',
+      dataIndex: 'pnl',
+      width: 120,
+      align: 'right' as const,
+      render: (v: number) => (
+        <span style={{ color: v >= 0 ? '#f5222d' : '#52c41a' }}>
+          {v >= 0 ? '+' : ''}{v?.toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      title: '累计盈亏',
+      dataIndex: 'cumulative',
+      width: 120,
+      align: 'right' as const,
+      render: (v: number) => v?.toFixed(2),
+    },
+    {
+      title: '当日回撤',
+      dataIndex: 'drawdown',
+      width: 120,
+      align: 'right' as const,
+      render: (v: number) => v ? (
+        <span style={{ color: '#ef4444' }}>{v?.toFixed(2)}</span>
+      ) : '-',
+    },
+    {
+      title: '交易次数',
+      dataIndex: 'trade_count',
+      width: 100,
+      align: 'right' as const,
+      render: (v: number) => v || '-',
+    },
+  ];
+
+  // 持仓变化表格列定义
+  const positionColumns = [
+    {
+      title: '时间',
+      dataIndex: 'datetime',
+      width: 160,
+      render: (v: string) => v?.slice(0, 19) || '-',
+    },
+    {
+      title: '持仓方向',
+      dataIndex: 'direction',
+      width: 100,
+      render: (v: string) => v ? (
+        <Tag color={v === '多' ? 'red' : v === '空' ? 'green' : 'grey'}>
+          {v}
+        </Tag>
+      ) : '无',
+    },
+    {
+      title: '持仓数量',
+      dataIndex: 'volume',
+      width: 100,
+      align: 'right' as const,
+    },
+    {
+      title: '持仓均价',
+      dataIndex: 'avg_price',
+      width: 100,
+      align: 'right' as const,
+      render: (v: number) => v?.toFixed(2),
+    },
+    {
+      title: '浮动盈亏',
+      dataIndex: 'floating_pnl',
+      width: 120,
+      align: 'right' as const,
+      render: (v: number) => v !== undefined ? (
+        <span style={{ color: v >= 0 ? '#f5222d' : '#52c41a' }}>
+          {v >= 0 ? '+' : ''}{v?.toFixed(2)}
+        </span>
+      ) : '-',
+    },
+  ];
+
+  // 导出数据
+  const exportData = (type: 'trades' | 'daily' | 'positions') => {
+    let csvContent = '';
+    let filename = '';
+
+    if (type === 'trades') {
+      const trades = result.trades || [];
+      csvContent = [
+        ['成交号', '时间', '方向', '开平', '价格', '数量', '盈亏'].join(','),
+        ...trades.map((t: any, idx: number) => [
+          idx + 1,
+          t.datetime || '',
+          t.direction || '',
+          t.offset || '',
+          t.price || '',
+          t.volume || '',
+          t.pnl !== undefined ? t.pnl.toFixed(2) : '',
+        ].join(',')),
+      ].join('\n');
+      filename = `backtest_trades_${new Date().toISOString().slice(0, 10)}.csv`;
+    } else if (type === 'daily') {
+      const daily = result.daily_pnl || [];
+      csvContent = [
+        ['日期', '当日盈亏', '累计盈亏'].join(','),
+        ...daily.map((d: any) => [
+          d.date || '',
+          d.pnl !== undefined ? d.pnl.toFixed(2) : '',
+          d.cumulative !== undefined ? d.cumulative.toFixed(2) : '',
+        ].join(',')),
+      ].join('\n');
+      filename = `backtest_daily_${new Date().toISOString().slice(0, 10)}.csv`;
+    }
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+  };
+
   return (
     <div>
       {/* 关键指标 */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         {metrics.filter(m => m.value !== undefined).map(m => (
           <Col span={6} key={m.label}>
             <Card bodyStyle={{ padding: 16 }} style={{ borderRadius: 12 }}>
@@ -1093,33 +1275,88 @@ function BacktestResultCharts({ result }: { result: BacktestResult }) {
         ))}
       </Row>
 
-      <Divider style={{ margin: '24px 0' }} />
+      {/* 详情 Tab */}
+      <Card style={{ borderRadius: 12 }}>
+        <Tabs activeKey={resultTab} onChange={setResultTab} type="line">
+          <TabPane tab="图表概览" itemKey="overview">
+            <Row gutter={[16, 16]}>
+              {/* 权益曲线 */}
+              <Col span={12}>
+                <Card style={{ borderRadius: 8 }}>
+                  <ReactECharts option={equityChartOption} style={{ height: 280 }} />
+                </Card>
+              </Col>
 
-      {/* 图表 */}
-      <Row gutter={[16, 16]}>
-        {/* 权益曲线 */}
-        <Col span={12}>
-          <Card style={{ borderRadius: 12 }}>
-            <ReactECharts option={equityChartOption} style={{ height: 300 }} />
-          </Card>
-        </Col>
+              {/* 回撤曲线 */}
+              <Col span={12}>
+                <Card style={{ borderRadius: 8 }}>
+                  <ReactECharts option={drawdownChartOption} style={{ height: 280 }} />
+                </Card>
+              </Col>
 
-        {/* 回撤曲线 */}
-        <Col span={12}>
-          <Card style={{ borderRadius: 12 }}>
-            <ReactECharts option={drawdownChartOption} style={{ height: 300 }} />
-          </Card>
-        </Col>
+              {/* 盈亏分布 */}
+              {pnlDistributionOption && (
+                <Col span={12}>
+                  <Card style={{ borderRadius: 8 }}>
+                    <ReactECharts option={pnlDistributionOption} style={{ height: 280 }} />
+                  </Card>
+                </Col>
+              )}
+            </Row>
+          </TabPane>
 
-        {/* 盈亏分布 */}
-        {pnlDistributionOption && (
-          <Col span={12}>
-            <Card style={{ borderRadius: 12 }}>
-              <ReactECharts option={pnlDistributionOption} style={{ height: 300 }} />
-            </Card>
-          </Col>
-        )}
-      </Row>
+          <TabPane
+            tab={`分笔成交 (${result.trades?.length || 0})`}
+            itemKey="trades"
+          >
+            <div style={{ marginBottom: 16, textAlign: 'right' }}>
+              <Button size="small" onClick={() => exportData('trades')}>导出 CSV</Button>
+            </div>
+            <Table
+              columns={tradeColumns}
+              dataSource={result.trades || []}
+              pagination={{ pageSize: 20 }}
+              size="small"
+              scroll={{ y: 400 }}
+              empty={<Typography.Text type="tertiary">暂无成交记录</Typography.Text>}
+            />
+          </TabPane>
+
+          <TabPane
+            tab={`日收益 (${result.daily_pnl?.length || 0})`}
+            itemKey="daily"
+          >
+            <div style={{ marginBottom: 16, textAlign: 'right' }}>
+              <Button size="small" onClick={() => exportData('daily')}>导出 CSV</Button>
+            </div>
+            <Table
+              columns={dailyColumns}
+              dataSource={result.daily_pnl || []}
+              pagination={{ pageSize: 20 }}
+              size="small"
+              scroll={{ y: 400 }}
+              empty={<Typography.Text type="tertiary">暂无日收益数据</Typography.Text>}
+            />
+          </TabPane>
+
+          <TabPane
+            tab="持仓变化"
+            itemKey="positions"
+          >
+            <Typography.Text type="tertiary">
+              持仓变化记录需要策略引擎支持，当前显示模拟数据
+            </Typography.Text>
+            <Table
+              columns={positionColumns}
+              dataSource={[]}
+              pagination={{ pageSize: 20 }}
+              size="small"
+              scroll={{ y: 400 }}
+              empty={<Typography.Text type="tertiary">暂无持仓变化数据</Typography.Text>}
+            />
+          </TabPane>
+        </Tabs>
+      </Card>
     </div>
   );
 }

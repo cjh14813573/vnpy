@@ -252,3 +252,98 @@ class TestTradingEnhancements:
         data = resp.json()
         assert "count" in data
         assert "已取消" in data["message"]
+
+
+class TestStopLossTakeProfit:
+    """止盈止损订单测试"""
+
+    def test_create_stop_loss_take_profit(self, client, auth_headers):
+        """创建止盈止损订单"""
+        resp = client.post("/api/trading/stop-loss-take-profit", json={
+            "vt_symbol": "rb2410.SHFE",
+            "direction": "多",
+            "volume": 1,
+            "stop_loss_price": 3400,
+            "take_profit_price": 3600,
+            "gateway_name": "CTP",
+        }, headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "id" in data
+        assert "order" in data
+        assert data["order"]["stop_loss_price"] == 3400
+        assert data["order"]["take_profit_price"] == 3600
+
+    def test_create_stop_loss_only(self, client, auth_headers):
+        """仅创建止损订单"""
+        resp = client.post("/api/trading/stop-loss-take-profit", json={
+            "vt_symbol": "rb2410.SHFE",
+            "direction": "多",
+            "volume": 1,
+            "stop_loss_price": 3400,
+            "gateway_name": "CTP",
+        }, headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "id" in data
+        assert data["order"]["stop_loss_price"] == 3400
+
+    def test_create_take_profit_only(self, client, auth_headers):
+        """仅创建止盈订单"""
+        resp = client.post("/api/trading/stop-loss-take-profit", json={
+            "vt_symbol": "rb2410.SHFE",
+            "direction": "空",
+            "volume": 1,
+            "take_profit_price": 3500,
+            "gateway_name": "CTP",
+        }, headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "id" in data
+        assert data["order"]["take_profit_price"] == 3500
+
+    def test_get_stop_loss_take_profit_orders(self, client, auth_headers):
+        """获取止盈止损订单列表"""
+        # 先创建订单
+        client.post("/api/trading/stop-loss-take-profit", json={
+            "vt_symbol": "rb2410.SHFE",
+            "direction": "多",
+            "volume": 1,
+            "stop_loss_price": 3400,
+            "take_profit_price": 3600,
+            "gateway_name": "CTP",
+        }, headers=auth_headers)
+
+        resp = client.get("/api/trading/stop-loss-take-profit", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+
+    def test_get_stop_loss_take_profit_with_filter(self, client, auth_headers):
+        """带过滤条件获取止盈止损订单"""
+        resp = client.get("/api/trading/stop-loss-take-profit?status=pending", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+
+    def test_cancel_stop_loss_take_profit(self, client, auth_headers):
+        """取消止盈止损订单"""
+        # 先创建订单
+        create_resp = client.post("/api/trading/stop-loss-take-profit", json={
+            "vt_symbol": "rb2410.SHFE",
+            "direction": "多",
+            "volume": 1,
+            "stop_loss_price": 3400,
+            "gateway_name": "CTP",
+        }, headers=auth_headers)
+        order_id = create_resp.json()["id"]
+
+        # 取消订单
+        resp = client.post(f"/api/trading/stop-loss-take-profit/{order_id}/cancel", headers=auth_headers)
+        assert resp.status_code == 200
+        assert "已取消" in resp.json()["message"]
+
+    def test_cancel_nonexistent_stop_loss_take_profit(self, client, auth_headers):
+        """取消不存在的止盈止损订单返回 404"""
+        resp = client.post("/api/trading/stop-loss-take-profit/INVALID-ID/cancel", headers=auth_headers)
+        assert resp.status_code == 404

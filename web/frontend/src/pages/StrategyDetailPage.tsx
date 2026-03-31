@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Typography, Tabs, TabPane, Table, Tag, Button, Card, Space, Toast, Switch } from '@douyinfe/semi-ui';
-import { IconArrowLeft, IconRefresh, IconExport } from '@douyinfe/semi-icons';
+import { Typography, Tabs, TabPane, Table, Tag, Button, Card, Space, Toast, Switch, Input, DatePicker, Select } from '@douyinfe/semi-ui';
+import { IconArrowLeft, IconRefresh, IconExport, IconSearch, IconFilter } from '@douyinfe/semi-icons';
 import { strategyApi, tradingApi } from '../api';
 
 interface VariableChange {
@@ -217,21 +217,11 @@ export default function StrategyDetailPage() {
               <VariableTable data={variableData} />
             )}
           </TabPane>
-          <TabPane tab="日志" itemKey="logs">
-            <Table columns={[
-              { title: '时间', dataIndex: 'time', width: 90, render: (v: string) => v?.slice(11, 19) || '-' },
-              { title: '级别', dataIndex: 'level', width: 80, render: (v: string) => <Tag>{v || 'INFO'}</Tag> },
-              { title: '内容', dataIndex: 'msg' },
-            ]} dataSource={logs.slice(-50).reverse()} pagination={false} size="small" empty="暂无日志" />
+          <TabPane tab={`日志 (${logs.length})`} itemKey="logs">
+            <StrategyLogViewer logs={logs} />
           </TabPane>
-          <TabPane tab="交易" itemKey="trades">
-            <Table columns={[
-              { title: '时间', dataIndex: 'datetime', width: 90, render: (v: string) => v?.slice(11, 19) },
-              { title: '合约', dataIndex: 'vt_symbol' },
-              { title: '方向', dataIndex: 'direction', width: 70, render: (v: string) => <Tag color={v === '多' ? 'green' : 'red'}>{v}</Tag> },
-              { title: '价格', dataIndex: 'price', align: 'right' as const, width: 80 },
-              { title: '数量', dataIndex: 'volume', align: 'right' as const, width: 60 },
-            ]} dataSource={trades} pagination={false} size="small" empty="暂无成交" />
+          <TabPane tab={`成交 (${trades.length})`} itemKey="trades">
+            <StrategyTradeTable trades={trades} />
           </TabPane>
           <TabPane tab="持仓" itemKey="pos">
             <PositionTable vtSymbol={instance.vt_symbol} />
@@ -298,6 +288,293 @@ function VariableTable({ data }: { data: any[] }) {
         </tbody>
       </table>
     </>
+  );
+}
+
+// 策略日志查看器组件
+function StrategyLogViewer({ logs }: { logs: any[] }) {
+  const [levelFilter, setLevelFilter] = useState<string>('');
+  const [keyword, setKeyword] = useState('');
+  const [dateRange, setDateRange] = useState<(string | null)[]>([null, null]);
+
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => {
+      if (levelFilter && log.level !== levelFilter) return false;
+      if (keyword && !log.msg?.toLowerCase().includes(keyword.toLowerCase())) return false;
+      if (dateRange[0] && log.time && log.time < dateRange[0]) return false;
+      if (dateRange[1] && log.time && log.time > dateRange[1]) return false;
+      return true;
+    }).reverse();
+  }, [logs, levelFilter, keyword, dateRange]);
+
+  const exportLogs = () => {
+    const csvContent = [
+      ['时间', '级别', '内容'].join(','),
+      ...filteredLogs.map(log => [
+        log.time || '',
+        log.level || 'INFO',
+        `"${(log.msg || '').replace(/"/g, '""')}"`,
+      ].join(',')),
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `strategy_logs_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    Toast.success('日志已导出');
+  };
+
+  const levelColors: Record<string, string> = {
+    DEBUG: 'grey',
+    INFO: 'blue',
+    WARNING: 'orange',
+    ERROR: 'red',
+    CRITICAL: 'red',
+  };
+
+  const columns = [
+    {
+      title: '时间',
+      dataIndex: 'time',
+      width: 160,
+      render: (v: string) => v?.slice(0, 19) || '-',
+    },
+    {
+      title: '级别',
+      dataIndex: 'level',
+      width: 80,
+      render: (v: string) => {
+        const level = v || 'INFO';
+        return <Tag color={(levelColors[level] || 'blue') as any}>{level}</Tag>;
+      },
+    },
+    {
+      title: '内容',
+      dataIndex: 'msg',
+      render: (v: string) => (
+        <span style={{ fontFamily: 'monospace', fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+          {v}
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <Card style={{ marginBottom: 16 }}>
+        <Space spacing={12} wrap>
+          <Select
+            placeholder="日志级别"
+            value={levelFilter}
+            onChange={(v) => setLevelFilter((v as string) || '')}
+            style={{ width: 120 }}
+            optionList={[
+              { label: '全部级别', value: '' },
+              { label: 'DEBUG', value: 'DEBUG' },
+              { label: 'INFO', value: 'INFO' },
+              { label: 'WARNING', value: 'WARNING' },
+              { label: 'ERROR', value: 'ERROR' },
+            ]}
+          />
+          <Input
+            prefix={<IconSearch />}
+            placeholder="关键词搜索"
+            value={keyword}
+            onChange={(v) => setKeyword(v)}
+            style={{ width: 200 }}
+          />
+          <DatePicker
+            type="dateRange"
+            placeholder={['开始日期', '结束日期']}
+            onChange={(dates) => {
+              if (Array.isArray(dates) && dates.length === 2) {
+                setDateRange([dates[0] as string, dates[1] as string]);
+              } else {
+                setDateRange([null, null]);
+              }
+            }}
+            style={{ width: 280 }}
+          />
+          <Button icon={<IconFilter />} onClick={() => { setLevelFilter(''); setKeyword(''); setDateRange([null, null]); }}>
+            重置
+          </Button>
+          <Button icon={<IconExport />} onClick={exportLogs} disabled={filteredLogs.length === 0}>
+            导出
+          </Button>
+        </Space>
+      </Card>
+
+      <Table
+        columns={columns}
+        dataSource={filteredLogs}
+        pagination={{ pageSize: 20 }}
+        size="small"
+        scroll={{ y: 400 }}
+        empty={<Typography.Text type="tertiary">暂无日志</Typography.Text>}
+      />
+    </div>
+  );
+}
+
+// 策略成交表格组件
+function StrategyTradeTable({ trades }: { trades: any[] }) {
+  const [directionFilter, setDirectionFilter] = useState<string>('');
+  const [offsetFilter, setOffsetFilter] = useState<string>('');
+
+  const filteredTrades = useMemo(() => {
+    return trades.filter(trade => {
+      if (directionFilter && trade.direction !== directionFilter) return false;
+      if (offsetFilter && trade.offset !== offsetFilter) return false;
+      return true;
+    });
+  }, [trades, directionFilter, offsetFilter]);
+
+  const exportTrades = () => {
+    const csvContent = [
+      ['时间', '合约', '方向', '开平', '价格', '数量'].join(','),
+      ...filteredTrades.map(trade => [
+        trade.datetime || '',
+        trade.vt_symbol || '',
+        trade.direction || '',
+        trade.offset || '',
+        trade.price || '',
+        trade.volume || '',
+      ].join(',')),
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `strategy_trades_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    Toast.success('成交记录已导出');
+  };
+
+  const columns = [
+    {
+      title: '时间',
+      dataIndex: 'datetime',
+      width: 160,
+      render: (v: string) => v?.slice(0, 19) || '-',
+    },
+    {
+      title: '合约',
+      dataIndex: 'vt_symbol',
+      width: 140,
+    },
+    {
+      title: '方向',
+      dataIndex: 'direction',
+      width: 80,
+      render: (v: string) => (
+        <Tag color={v === '多' ? 'red' : 'green'}>{v}</Tag>
+      ),
+    },
+    {
+      title: '开平',
+      dataIndex: 'offset',
+      width: 80,
+      render: (v: string) => {
+        const colors: Record<string, string> = {
+          '开': 'blue',
+          '平': 'orange',
+          '平今': 'purple',
+          '平昨': 'cyan',
+        };
+        return <Tag color={(colors[v] || 'default') as any}>{v}</Tag>;
+      },
+    },
+    {
+      title: '价格',
+      dataIndex: 'price',
+      width: 100,
+      align: 'right' as const,
+      render: (v: number) => v?.toFixed(2),
+    },
+    {
+      title: '数量',
+      dataIndex: 'volume',
+      width: 80,
+      align: 'right' as const,
+    },
+  ];
+
+  // 统计信息
+  const stats = useMemo(() => {
+    const total = filteredTrades.length;
+    const buyTrades = filteredTrades.filter(t => t.direction === '多').length;
+    const sellTrades = filteredTrades.filter(t => t.direction === '空').length;
+    const totalVolume = filteredTrades.reduce((sum, t) => sum + (t.volume || 0), 0);
+    return { total, buyTrades, sellTrades, totalVolume };
+  }, [filteredTrades]);
+
+  return (
+    <div>
+      <Card style={{ marginBottom: 16 }}>
+        <Space spacing={12} wrap>
+          <Select
+            placeholder="方向筛选"
+            value={directionFilter}
+            onChange={(v) => setDirectionFilter((v as string) || '')}
+            style={{ width: 100 }}
+            optionList={[
+              { label: '全部', value: '' },
+              { label: '多', value: '多' },
+              { label: '空', value: '空' },
+            ]}
+          />
+          <Select
+            placeholder="开平筛选"
+            value={offsetFilter}
+            onChange={(v) => setOffsetFilter((v as string) || '')}
+            style={{ width: 100 }}
+            optionList={[
+              { label: '全部', value: '' },
+              { label: '开', value: '开' },
+              { label: '平', value: '平' },
+              { label: '平今', value: '平今' },
+              { label: '平昨', value: '平昨' },
+            ]}
+          />
+          <Button icon={<IconFilter />} onClick={() => { setDirectionFilter(''); setOffsetFilter(''); }}>
+            重置
+          </Button>
+          <Button icon={<IconExport />} onClick={exportTrades} disabled={filteredTrades.length === 0}>
+            导出
+          </Button>
+        </Space>
+      </Card>
+
+      {/* 统计卡片 */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+        <Card bodyStyle={{ padding: '8px 16px' }}>
+          <Typography.Text type="tertiary" size="small">总成交</Typography.Text>
+          <div style={{ fontSize: 20, fontWeight: 'bold' }}>{stats.total}</div>
+        </Card>
+        <Card bodyStyle={{ padding: '8px 16px' }}>
+          <Typography.Text type="tertiary" size="small">买入</Typography.Text>
+          <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--semi-color-danger)' }}>{stats.buyTrades}</div>
+        </Card>
+        <Card bodyStyle={{ padding: '8px 16px' }}>
+          <Typography.Text type="tertiary" size="small">卖出</Typography.Text>
+          <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--semi-color-success)' }}>{stats.sellTrades}</div>
+        </Card>
+        <Card bodyStyle={{ padding: '8px 16px' }}>
+          <Typography.Text type="tertiary" size="small">总数量</Typography.Text>
+          <div style={{ fontSize: 20, fontWeight: 'bold' }}>{stats.totalVolume}</div>
+        </Card>
+      </div>
+
+      <Table
+        columns={columns}
+        dataSource={filteredTrades}
+        pagination={{ pageSize: 20 }}
+        size="small"
+        scroll={{ y: 350 }}
+        empty={<Typography.Text type="tertiary">暂无成交记录</Typography.Text>}
+      />
+    </div>
   );
 }
 

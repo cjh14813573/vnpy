@@ -131,6 +131,57 @@ def _make_mock_bridge():
     mock_bridge.start_all_strategies.return_value = True
     mock_bridge.stop_strategy.return_value = True
     mock_bridge.stop_all_strategies.return_value = True
+
+    # 算法交易 mocks
+    mock_bridge.get_algo_templates.return_value = [
+        {"name": "TWAP", "display_name": "TWAP 时间加权", "default_setting": {"interval": 60, "interval_num": 10}},
+        {"name": "SNIPER", "display_name": "SNIPER 狙击手", "default_setting": {"trigger_price": 0}},
+    ]
+    mock_bridge.get_algo_template.return_value = {
+        "name": "TWAP",
+        "display_name": "TWAP 时间加权",
+        "default_setting": {"interval": 60, "interval_num": 10},
+    }
+    mock_bridge.get_algo_list.return_value = [
+        {
+            "name": "TWAP_rb2410_001",
+            "template_name": "TWAP",
+            "vt_symbol": "rb2410.SHFE",
+            "direction": "多",
+            "offset": "开",
+            "price": 3500,
+            "volume": 10,
+            "traded": 5,
+            "status": "运行中",
+            "variables": {"next_time": "2024-01-01T10:00:00"},
+        }
+    ]
+    mock_bridge.start_algo.return_value = "TWAP_rb2410_001"
+    mock_bridge.stop_algo.return_value = None
+    mock_bridge.stop_all_algos.return_value = None
+    mock_bridge.pause_algo.return_value = None
+    mock_bridge.resume_algo.return_value = None
+
+    # 合约详情 mocks
+    mock_bridge.get_contract_detail.return_value = {
+        "symbol": "rb2410",
+        "exchange": "SHFE",
+        "vt_symbol": "rb2410.SHFE",
+        "gateway_name": "CTP",
+        "name": "螺纹钢2410",
+        "product": "期货",
+        "size": 10,
+        "pricetick": 1.0,
+        "min_volume": 1.0,
+        "max_volume": 1000,
+        "trading_sessions": [{"start": "09:00", "end": "10:15"}, {"start": "10:30", "end": "11:30"}],
+        "margin_rate": 0.12,
+        "delivery_info": {"type": "实物交割", "month": 10},
+    }
+
+    # 产品类型 mocks
+    mock_bridge.get_all_products.return_value = ["期货", "期权", "组合", "即期", "远期", "掉期"]
+
     return mock_bridge
 
 
@@ -150,6 +201,7 @@ def client(_patch_settings):
          patch("routers.trading.bridge", mock_bridge), \
          patch("routers.strategy.bridge", mock_bridge), \
          patch("routers.backtest.bridge", mock_bridge), \
+         patch("routers.algo.bridge", mock_bridge), \
          patch("bridge.bridge", mock_bridge):
         from main import app
         # 覆盖 lifespan 中的 bridge 初始化

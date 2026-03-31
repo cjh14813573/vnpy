@@ -1,21 +1,29 @@
 import { useEffect, useState } from 'react';
-import { Typography, Card, Button, Input, Select, Row, Col, Toast, Space, Table, Modal, Descriptions } from '@douyinfe/semi-ui';
+import { Typography, Card, Button, Input, Select, Row, Col, Toast, Space, Table, Modal, Descriptions, Tabs } from '@douyinfe/semi-ui';
 import { IconPlus, IconPlay, IconDelete } from '@douyinfe/semi-icons';
 import { mlApi } from '../api';
+import ModelEvaluationCharts from '../components/ml/ModelEvaluationCharts';
 
 const { Title, Text } = Typography;
 
 interface MLModel {
   name: string;
+  model_type?: string;
   metrics: {
     accuracy: number;
     precision: number;
     recall: number;
     f1: number;
     auc?: number;
+    cv_mean?: number;
+    cv_std?: number;
   };
   created_at: string;
   features: number;
+  feature_names?: string[];
+  config?: Record<string, any>;
+  evaluation?: Record<string, any>;
+  feature_importance?: Record<string, number>;
 }
 
 export default function MLPage() {
@@ -98,7 +106,8 @@ export default function MLPage() {
   const viewDetail = async (model: MLModel) => {
     try {
       const res = await mlApi.getModelDetail(model.name);
-      setSelectedModel(res.data);
+      // 合并基础信息和详细数据
+      setSelectedModel({ ...model, ...res.data });
       setShowDetailModal(true);
     } catch (err: any) {
       Toast.error('加载详情失败');
@@ -172,16 +181,76 @@ export default function MLPage() {
         <Button theme="solid" block loading={loading} onClick={handleTrain}>开始训练</Button>
       </Modal>
 
-      <Modal title="模型详情" visible={showDetailModal} onCancel={() => setShowDetailModal(false)} footer={null} width={700}>
+      <Modal
+        title={`模型详情 - ${selectedModel?.name || ''}`}
+        visible={showDetailModal}
+        onCancel={() => setShowDetailModal(false)}
+        footer={null}
+        width={900}
+        centered
+      >
         {selectedModel && (
-          <Descriptions>
-            <Descriptions.Item itemKey="名称">{selectedModel.name}</Descriptions.Item>
-            <Descriptions.Item itemKey="准确率">{(selectedModel.metrics.accuracy * 100).toFixed(2)}%</Descriptions.Item>
-            <Descriptions.Item itemKey="精确率">{(selectedModel.metrics.precision * 100).toFixed(2)}%</Descriptions.Item>
-            <Descriptions.Item itemKey="召回率">{(selectedModel.metrics.recall * 100).toFixed(2)}%</Descriptions.Item>
-            <Descriptions.Item itemKey="F1分数">{selectedModel.metrics.f1.toFixed(4)}</Descriptions.Item>
-            {selectedModel.metrics.auc && <Descriptions.Item itemKey="AUC">{selectedModel.metrics.auc.toFixed(4)}</Descriptions.Item>}
-          </Descriptions>
+          <Tabs type="line">
+            <Tabs.TabPane tab="评估指标" itemKey="metrics">
+              {selectedModel.evaluation ? (
+                <ModelEvaluationCharts
+                  data={{
+                    metrics: selectedModel.metrics,
+                    evaluation: selectedModel.evaluation,
+                    feature_importance: selectedModel.feature_importance || {},
+                  }}
+                />
+              ) : (
+                <div style={{ textAlign: 'center', padding: 40 }}>
+                  <Text type="tertiary">该模型没有详细的评估数据</Text>
+                </div>
+              )}
+            </Tabs.TabPane>
+            <Tabs.TabPane tab="基本信息" itemKey="info">
+              <Descriptions layout="horizontal">
+                <Descriptions.Item itemKey="模型名称">{selectedModel.name}</Descriptions.Item>
+                <Descriptions.Item itemKey="模型类型">{selectedModel.model_type || '未知'}</Descriptions.Item>
+                <Descriptions.Item itemKey="特征数量">{selectedModel.features}</Descriptions.Item>
+                <Descriptions.Item itemKey="创建时间">
+                  {new Date(selectedModel.created_at).toLocaleString()}
+                </Descriptions.Item>
+              </Descriptions>
+              {selectedModel.config && (
+                <div style={{ marginTop: 16 }}>
+                  <Text strong>特征配置:</Text>
+                  <Descriptions style={{ marginTop: 8 }}>
+                    <Descriptions.Item itemKey="预测周期">{selectedModel.config.target_horizon} 期</Descriptions.Item>
+                    <Descriptions.Item itemKey="目标类型">{selectedModel.config.target_type}</Descriptions.Item>
+                    <Descriptions.Item itemKey="技术指标">
+                      {selectedModel.config.technical_indicators?.join(', ')}
+                    </Descriptions.Item>
+                  </Descriptions>
+                </div>
+              )}
+            </Tabs.TabPane>
+            <Tabs.TabPane tab="特征列表" itemKey="features">
+              {selectedModel.feature_names ? (
+                <div style={{ maxHeight: 400, overflow: 'auto' }}>
+                  {selectedModel.feature_names.map((name, idx) => (
+                    <div
+                      key={name}
+                      style={{
+                        padding: '8px 12px',
+                        borderBottom: '1px solid var(--semi-color-border)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>{name}</span>
+                      <span style={{ color: 'var(--semi-color-text-2)' }}>#{idx + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Text type="tertiary">暂无特征信息</Text>
+              )}
+            </Tabs.TabPane>
+          </Tabs>
         )}
       </Modal>
     </div>

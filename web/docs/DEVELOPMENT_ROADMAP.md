@@ -22,7 +22,7 @@
 | **算法** | 算法模板、启停控制 | ✅ 完成 |
 | **模拟** | 滑点设置、持仓清空 | ✅ 完成 |
 | **设置** | 全局配置持久化、网关管理 | ✅ 完成 |
-| **ML** | 基础模型训练、预测 | ✅ 完成 |
+| **ML** | 模型训练、预测、特征工程、信号监控、模型对比 | ✅ 完成 |
 
 ---
 
@@ -168,11 +168,17 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 - 自动滚动开关
 
 **开发任务**:
-- [ ] 前端: 日志级别筛选器
-- [ ] 前端: 实时日志 WebSocket 推送优化
-- [ ] 前端: 代码高亮组件
+- [x] 后端: 增强 `/api/system/logs` 接口（支持级别、关键词、来源、时间范围筛选）
+- [x] 前端: 新增 SystemLogsPage 系统日志监控页面
+- [x] 前端: 日志级别筛选器（DEBUG/INFO/WARNING/ERROR）
+- [x] 前端: 关键词搜索高亮
+- [x] 前端: 日志来源筛选
+- [x] 前端: 时间范围选择
+- [x] 前端: 导出日志 CSV
+- [x] 前端: 自动刷新开关
+- [x] 测试: 系统日志 API 测试用例
 
-**预计工时**: 1 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -205,10 +211,14 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 - `GET /api/backtest/tasks/{id}/positions` - 持仓变化
 
 **开发任务**:
-- [ ] 后端: 回测结果明细查询接口
-- [ ] 前端: BacktestResultPage 增强
+- [x] 后端: 回测结果数据接口（trades/daily_pnl 已存在）
+- [x] 前端: BacktestResultPage 添加 Tab 组件（图表概览/分笔成交/日收益/持仓变化）
+- [x] 前端: 分笔成交表格（带导出）
+- [x] 前端: 日收益明细表格（带导出）
+- [x] 前端: 持仓变化表格占位
+- [x] 前端: 数据导出 CSV 功能
 
-**预计工时**: 1.5 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -218,11 +228,12 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 **目标**: 专门的策略日志和成交 Tab
 
 **开发任务**:
-- [ ] 前端: StrategyLogViewer 组件
-- [ ] 前端: StrategyTradeTable 组件
-- [ ] 后端: 策略日志查询优化（分页）
+- [x] 前端: StrategyLogViewer 组件（级别筛选、关键词搜索、时间范围、导出）
+- [x] 前端: StrategyTradeTable 组件（方向/开平筛选、统计卡片、导出）
+- [x] 前端: StrategyDetailPage 日志和成交 Tab 增强
+- [x] 测试: 同步更新测试用例
 
-**预计工时**: 1 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -237,12 +248,16 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 - JSON (vnpy 原生格式)
 
 **开发任务**:
-- [ ] 后端: CSV 数据导入接口
-- [ ] 后端: Excel 数据导入接口（可选）
-- [ ] 前端: 数据导入对话框
-- [ ] 前端: 数据导出格式选择
+- [x] 后端: CSV 数据导入接口 `/api/data/import-csv`
+- [x] 后端: CSV 数据导出接口 `/api/data/export-csv`
+- [x] 后端: 数据预览接口 `/api/data/preview`
+- [x] 后端: 数据概览接口（已实现）
+- [x] 前端: 数据导入对话框（文件选择、合约选择、格式说明、预览）
+- [x] 前端: 数据导出对话框（时间范围选择）
+- [x] 前端: 数据预览对话框
+- [x] 测试: 数据管理 API 测试用例
 
-**预计工时**: 2 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -258,11 +273,10 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 - 记录: 列宽、排序、折叠状态、Tab 位置
 
 **开发任务**:
-- [ ] 前端: useLayoutPreference Hook
-- [ ] 前端: 表格列宽拖拽保存
-- [ ] 前端: 侧边栏折叠状态保存
+- [x] 前端: useLayoutPreference Hook（支持侧边栏折叠、页面Tab、表格分页大小）
+- [x] 前端: AppLayout 集成侧边栏折叠状态保存
 
-**预计工时**: 1 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -283,11 +297,11 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 | Esc | 取消/关闭弹窗 |
 
 **开发任务**:
-- [ ] 前端: useKeyboardShortcuts Hook
-- [ ] 前端: TradingPage 快捷键绑定
-- [ ] 前端: 快捷键提示 Overlay
+- [x] 前端: useKeyboardShortcuts Hook（支持 F1-F4、Ctrl+Z、Ctrl+Enter、Ctrl+X、Esc）
+- [x] 前端: TradingPage 快捷键绑定（买开/卖开/买平/卖平/下单/撤单）
+- [x] 前端: 快捷键提示 Popover
 
-**预计工时**: 1 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -297,10 +311,11 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 **目标**: 一键撤销所有活跃订单
 
 **开发任务**:
-- [ ] 前端: TradingPage 批量撤单按钮
-- [ ] API 已存在: `POST /api/trading/cancel-all`
+- [x] 前端: TradingPage 批量撤单按钮（带数量显示和确认）
+- [x] 快捷键支持: Ctrl+X 批量撤单
+- [x] API 已存在: `POST /api/trading/cancel-all`
 
-**预计工时**: 0.5 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -333,11 +348,12 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 ```
 
 **开发任务**:
-- [ ] 前端: FeatureEngineeringPage 新页面
-- [ ] 后端: 特征预览接口 `/api/ml/features/preview`
-- [ ] 后端: 特征相关性分析
+- [x] 前端: FeatureEngineeringPage 新页面
+- [x] 后端: 特征预览接口 `/api/ml/features/preview`
+- [x] 后端: 特征相关性分析
+- [x] 测试: ML 模块测试用例
 
-**预计工时**: 2 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -351,10 +367,12 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 - 预测结果分布
 
 **开发任务**:
-- [ ] 后端: 模型评估指标补充
-- [ ] 前端: ModelEvaluationCharts 组件
+- [x] 后端: 模型评估指标补充 (ROC曲线、混淆矩阵、学习曲线、预测分布)
+- [x] 后端: 模型评估数据接口 `/api/ml/models/{name}/evaluation`
+- [x] 前端: ModelEvaluationCharts 组件 (ROC曲线、混淆矩阵、特征重要性、学习曲线、预测分布)
+- [x] 前端: MLPage 详情页集成图表展示
 
-**预计工时**: 1.5 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -371,12 +389,12 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 - WebSocket: `ml.signal` 事件
 
 **开发任务**:
-- [ ] 后端: ML 信号服务（定时预测）
-- [ ] 后端: ML 信号 WebSocket 推送
-- [ ] 前端: MLSignalMonitor 页面
-- [ ] 策略: ML 信号调用接口
+- [x] 后端: ML 信号服务（定时预测）
+- [x] 后端: ML 信号 WebSocket 推送
+- [x] 前端: MLSignalMonitor 页面
+- [x] 后端: 信号历史管理接口
 
-**预计工时**: 2.5 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 
@@ -388,11 +406,12 @@ cu2410,SHFE,SNIPER,68000,5,"{\"trigger_price\":68100}"
 - 最佳模型选择
 
 **开发任务**:
-- [ ] 前端: ModelComparison 组件
-- [ ] 后端: ML 回测引擎
-- [ ] 后端: 模型对比报告接口
+- [x] 后端: 模型对比接口 `/api/ml/models/compare` - 支持多模型性能对比、排名、综合评分
+- [x] 后端: ML 回测引擎 `/api/ml/backtest` - 基于历史数据的信号回测
+- [x] 前端: MLModelComparisonPage 页面 - 模型选择对比、雷达图/柱状图可视化
+- [x] 前端: 回测结果展示 - 权益曲线、交易明细、胜率/回撤等指标
 
-**预计工时**: 2 天
+**状态**: ✅ 2026-03-31 完成
 
 ---
 

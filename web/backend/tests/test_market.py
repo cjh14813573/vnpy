@@ -60,6 +60,41 @@ class TestContracts:
         resp = client.get("/api/market/contracts")
         assert resp.status_code == 401
 
+    def test_search_contracts(self, client, auth_headers):
+        """搜索合约"""
+        resp = client.get("/api/market/contracts/search?keyword=rb", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "data" in data
+        assert "total" in data
+        assert isinstance(data["data"], list)
+
+    def test_search_contracts_with_exchange_filter(self, client, auth_headers):
+        """搜索合约带交易所过滤"""
+        resp = client.get("/api/market/contracts/search?keyword=螺纹&exchange=SHFE", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "data" in data
+        assert isinstance(data["data"], list)
+
+    def test_get_contract_detail(self, client, auth_headers):
+        """获取合约详情"""
+        resp = client.get("/api/market/contracts/rb2410.SHFE/detail", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["vt_symbol"] == "rb2410.SHFE"
+        assert "trading_sessions" in data
+        assert "margin_rate" in data
+        assert "delivery_info" in data
+
+    def test_get_products(self, client, auth_headers):
+        """获取产品类型列表"""
+        resp = client.get("/api/market/products", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "data" in data
+        assert isinstance(data["data"], list)
+
 
 class TestTicks:
     """行情查询测试"""

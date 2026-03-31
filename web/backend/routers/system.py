@@ -1,6 +1,8 @@
 """系统管理路由"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
+from datetime import datetime
 from auth import get_current_user
 from bridge import bridge
 
@@ -60,6 +62,49 @@ async def get_exchanges():
 
 
 @router.get("/logs")
-async def get_logs():
-    """获取系统日志"""
-    return bridge.get_logs()
+async def get_logs(
+    level: Optional[str] = Query(None, description="日志级别过滤: DEBUG, INFO, WARNING, ERROR"),
+    keyword: Optional[str] = Query(None, description="关键词搜索"),
+    source: Optional[str] = Query(None, description="日志来源过滤"),
+    start_time: Optional[str] = Query(None, description="开始时间 (ISO格式)"),
+    end_time: Optional[str] = Query(None, description="结束时间 (ISO格式)"),
+    limit: int = Query(100, ge=1, le=500, description="返回条数限制"),
+):
+    """获取系统日志（支持筛选）"""
+    logs = bridge.get_logs()
+
+    # 级别筛选
+    if level:
+        level_upper = level.upper()
+        logs = [log for log in logs if log.get("level", "").upper() == level_upper]
+
+    # 关键词搜索
+    if keyword:
+        logs = [log for log in logs if keyword.lower() in log.get("msg", "").lower()]
+
+    # 来源筛选
+    if source:
+        logs = [log for log in logs if source.lower() in log.get("gateway_name", "").lower()]
+
+    # 时间范围筛选
+    if start_time or end_time:
+        filtered_logs = []
+        for log in logs:
+            log_time = log.get("time")
+            if not log_time:
+                continue
+            try:
+                # 解析日志时间
+                if start_time and log_time < start_time:
+                    continue
+                if end_time and log_time > end_time:
+                    continue
+                filtered_logs.append(log)
+            except Exception:
+                continue
+        logs = filtered_logs
+
+    # 限制返回条数
+    logs = logs[-limit:] if logs else []
+
+    return {"data": logs, "total": len(logs)}

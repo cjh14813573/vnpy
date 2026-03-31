@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Typography, Button, Table, Card, Toast, Modal, Input, Select, Row, Col, Space, Popconfirm, Tag, Progress, Spin } from '@douyinfe/semi-ui';
-import { IconDownload, IconDelete, IconRefresh } from '@douyinfe/semi-icons';
+import { Typography, Button, Table, Card, Toast, Modal, Input, Select, Row, Col, Space, Popconfirm, Tag, Progress, Spin, Tabs, Upload } from '@douyinfe/semi-ui';
+import { IconDownload, IconDelete, IconRefresh, IconUpload, IconExport } from '@douyinfe/semi-icons';
 import { dataApi, marketApi } from '../api';
 import type { Contract } from '../api/types';
+
+const { TabPane } = Tabs;
 
 interface DataOverview {
   symbol: string;
@@ -18,6 +20,9 @@ export default function DataPage() {
   const [overview, setOverview] = useState<DataOverview[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [, setContractsLoading] = useState(false);
   const [dlForm, setDlForm] = useState({
@@ -27,7 +32,21 @@ export default function DataPage() {
     interval: '1m',
     exchange: 'SHFE'
   });
+  const [importForm, setImportForm] = useState({
+    vt_symbol: '',
+    interval: '1m',
+  });
+  const [exportForm, setExportForm] = useState({
+    vt_symbol: '',
+    interval: '1m',
+    start: '',
+    end: '',
+  });
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importResult, setImportResult] = useState<any>(null);
   const [downloading, setDownloading] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
 
   const load = async () => {
@@ -106,6 +125,71 @@ export default function DataPage() {
     }
   };
 
+  // 导入数据
+  const handleImport = async () => {
+    if (!importFile || !importForm.vt_symbol) {
+      Toast.error('请选择文件和合约');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const res = await dataApi.importCsv(importFile, importForm.vt_symbol, importForm.interval);
+      setImportResult(res.data);
+      Toast.success(`导入完成: ${res.data.imported} 条成功`);
+      load();
+    } catch (err: any) {
+      Toast.error(err.response?.data?.detail || '导入失败');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // 导出数据
+  const handleExport = async () => {
+    if (!exportForm.vt_symbol) {
+      Toast.error('请选择合约');
+      return;
+    }
+
+    try {
+      const res = await dataApi.exportCsv(
+        exportForm.vt_symbol,
+        exportForm.interval,
+        exportForm.start || undefined,
+        exportForm.end || undefined
+      );
+
+      // 下载文件
+      const blob = new Blob([res.data], { type: 'text/csv' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${exportForm.vt_symbol.replace('.', '_')}_${exportForm.interval}_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+
+      Toast.success('导出成功');
+      setExportOpen(false);
+    } catch (err: any) {
+      Toast.error(err.response?.data?.detail || '导出失败');
+    }
+  };
+
+  // 预览数据
+  const handlePreview = async () => {
+    if (!importForm.vt_symbol) {
+      Toast.error('请选择合约');
+      return;
+    }
+
+    try {
+      const res = await dataApi.preview(importForm.vt_symbol, importForm.interval, 10);
+      setPreviewData(res.data);
+      setPreviewOpen(true);
+    } catch (err: any) {
+      Toast.error(err.response?.data?.detail || '预览失败');
+    }
+  };
+
   const columns = [
     { title: '合约', dataIndex: 'symbol', width: 120 },
     { title: '交易所', dataIndex: 'exchange', width: 100, render: (v: string) => <Tag size="small">{v}</Tag> },
@@ -141,6 +225,8 @@ export default function DataPage() {
           >
             <Button type="danger" theme="borderless">清空全部</Button>
           </Popconfirm>
+          <Button theme="solid" icon={<IconUpload />} onClick={() => setImportOpen(true)}>导入 CSV</Button>
+          <Button theme="solid" icon={<IconExport />} onClick={() => setExportOpen(true)}>导出 CSV</Button>
           <Button theme="solid" icon={<IconDownload />} onClick={() => setDownloadOpen(true)}>下载数据</Button>
         </Space>
       </div>
@@ -245,6 +331,184 @@ export default function DataPage() {
             </Button>
           </div>
         </Spin>
+      </Modal>
+
+      {/* 导入 CSV 对话框 */}
+      <Modal
+        title="导入 CSV 数据"
+        visible={importOpen}
+        onCancel={() => { if (!importing) setImportOpen(false); }}
+        footer={null}
+        style={{ borderRadius: 12 }}
+      >
+        <Spin spinning={importing} tip="导入中...">
+          <div>
+            <label style={{ marginBottom: 8, display: 'block' }}>选择合约</label>
+            <Select
+              value={importForm.vt_symbol}
+              onChange={(v) => setImportForm({ ...importForm, vt_symbol: v as string })}
+              style={{ width: '100%', marginBottom: 12 }}
+              placeholder="请选择合约"
+              optionList={contracts.map((c) => ({ value: c.vt_symbol, label: `${c.vt_symbol} - ${c.name}` }))}
+              filter
+              searchPlaceholder="搜索合约"
+            />
+
+            <label style={{ marginBottom: 8, display: 'block' }}>数据周期</label>
+            <Select
+              value={importForm.interval}
+              onChange={(v) => setImportForm({ ...importForm, interval: v as string })}
+              style={{ width: '100%', marginBottom: 12 }}
+              optionList={[
+                { value: '1m', label: '1分钟' },
+                { value: '5m', label: '5分钟' },
+                { value: '15m', label: '15分钟' },
+                { value: '1h', label: '1小时' },
+                { value: 'd', label: '日线' },
+              ]}
+            />
+
+            <label style={{ marginBottom: 8, display: 'block' }}>选择 CSV 文件</label>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+              style={{ marginBottom: 12, display: 'block' }}
+            />
+
+            {importFile && (
+              <div style={{ marginBottom: 12, padding: 8, background: 'var(--semi-color-fill-0)', borderRadius: 4 }}>
+                <Typography.Text size="small">已选择: {importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)</Typography.Text>
+              </div>
+            )}
+
+            <div style={{ marginBottom: 16, padding: 12, background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
+              <Typography.Text strong size="small">CSV 格式要求:</Typography.Text>
+              <ul style={{ margin: '8px 0', paddingLeft: 20, fontSize: 12 }}>
+                <li>必需列: datetime, open, high, low, close, volume</li>
+                <li>可选列: open_interest</li>
+                <li>datetime 格式: YYYY-MM-DD HH:MM:SS</li>
+              </ul>
+            </div>
+
+            <Space style={{ width: '100%' }}>
+              <Button style={{ flex: 1 }} onClick={handlePreview} disabled={!importForm.vt_symbol}>预览数据</Button>
+              <Button theme="solid" style={{ flex: 2 }} onClick={handleImport} disabled={importing || !importFile || !importForm.vt_symbol}>
+                {importing ? '导入中...' : '开始导入'}
+              </Button>
+            </Space>
+
+            {importResult && (
+              <div style={{ marginTop: 16, padding: 12, background: importResult.errors > 0 ? '#fff7e6' : '#f6ffed', borderRadius: 8 }}>
+                <Typography.Text strong>导入结果:</Typography.Text>
+                <div style={{ marginTop: 8 }}>
+                  <Typography.Text size="small" type="success">成功: {importResult.imported} 条</Typography.Text>
+                  {importResult.errors > 0 && (
+                    <div>
+                      <Typography.Text size="small" type="danger">失败: {importResult.errors} 条</Typography.Text>
+                      {importResult.error_details?.length > 0 && (
+                        <ul style={{ margin: '4px 0', paddingLeft: 16, fontSize: 11 }}>
+                          {importResult.error_details.slice(0, 3).map((err: any, idx: number) => (
+                            <li key={idx}>第 {err.row} 行: {err.error}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </Spin>
+      </Modal>
+
+      {/* 导出 CSV 对话框 */}
+      <Modal
+        title="导出 CSV 数据"
+        visible={exportOpen}
+        onCancel={() => setExportOpen(false)}
+        footer={null}
+        style={{ borderRadius: 12 }}
+      >
+        <div>
+          <label style={{ marginBottom: 8, display: 'block' }}>选择合约</label>
+          <Select
+            value={exportForm.vt_symbol}
+            onChange={(v) => setExportForm({ ...exportForm, vt_symbol: v as string })}
+            style={{ width: '100%', marginBottom: 12 }}
+            placeholder="请选择合约"
+            optionList={contracts.map((c) => ({ value: c.vt_symbol, label: `${c.vt_symbol} - ${c.name}` }))}
+            filter
+            searchPlaceholder="搜索合约"
+          />
+
+          <label style={{ marginBottom: 8, display: 'block' }}>数据周期</label>
+          <Select
+            value={exportForm.interval}
+            onChange={(v) => setExportForm({ ...exportForm, interval: v as string })}
+            style={{ width: '100%', marginBottom: 12 }}
+            optionList={[
+              { value: '1m', label: '1分钟' },
+              { value: '5m', label: '5分钟' },
+              { value: '15m', label: '15分钟' },
+              { value: '1h', label: '1小时' },
+              { value: 'd', label: '日线' },
+            ]}
+          />
+
+          <Row gutter={8}>
+            <Col span={12}>
+              <label style={{ marginBottom: 8, display: 'block' }}>开始日期 (可选)</label>
+              <Input type="date" value={exportForm.start} onChange={(v) => setExportForm({ ...exportForm, start: v })} style={{ marginBottom: 12 }} />
+            </Col>
+            <Col span={12}>
+              <label style={{ marginBottom: 8, display: 'block' }}>结束日期 (可选)</label>
+              <Input type="date" value={exportForm.end} onChange={(v) => setExportForm({ ...exportForm, end: v })} style={{ marginBottom: 12 }} />
+            </Col>
+          </Row>
+
+          <Button theme="solid" block onClick={handleExport} disabled={!exportForm.vt_symbol} style={{ borderRadius: 10 }}>
+            导出 CSV
+          </Button>
+        </div>
+      </Modal>
+
+      {/* 数据预览对话框 */}
+      <Modal
+        title="数据预览"
+        visible={previewOpen}
+        onCancel={() => setPreviewOpen(false)}
+        footer={null}
+        style={{ borderRadius: 12, width: 800 }}
+      >
+        {previewData ? (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <Typography.Text type="tertiary">合约: </Typography.Text>
+              <Typography.Text strong>{previewData.vt_symbol}</Typography.Text>
+              <Typography.Text type="tertiary" style={{ marginLeft: 16 }}>周期: </Typography.Text>
+              <Typography.Text strong>{previewData.interval}</Typography.Text>
+              <Typography.Text type="tertiary" style={{ marginLeft: 16 }}>总条数: </Typography.Text>
+              <Typography.Text strong>{previewData.total}</Typography.Text>
+            </div>
+            <Table
+              columns={[
+                { title: '时间', dataIndex: 'datetime', width: 160 },
+                { title: '开盘', dataIndex: 'open', align: 'right' as const, render: (v: number) => v?.toFixed(2) },
+                { title: '最高', dataIndex: 'high', align: 'right' as const, render: (v: number) => v?.toFixed(2) },
+                { title: '最低', dataIndex: 'low', align: 'right' as const, render: (v: number) => v?.toFixed(2) },
+                { title: '收盘', dataIndex: 'close', align: 'right' as const, render: (v: number) => v?.toFixed(2) },
+                { title: '成交量', dataIndex: 'volume', align: 'right' as const },
+              ]}
+              dataSource={previewData.preview}
+              pagination={false}
+              size="small"
+              scroll={{ y: 300 }}
+            />
+          </div>
+        ) : (
+          <Typography.Text type="tertiary">加载中...</Typography.Text>
+        )}
       </Modal>
     </div>
   );

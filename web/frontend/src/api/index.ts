@@ -21,7 +21,8 @@ export const systemApi = {
     client.post('/api/system/gateways/connect', data),
   apps: () => client.get('/api/system/apps'),
   exchanges: () => client.get('/api/system/exchanges'),
-  logs: () => client.get('/api/system/logs'),
+  logs: (params?: { level?: string; keyword?: string; source?: string; start_time?: string; end_time?: string; limit?: number }) =>
+    client.get('/api/system/logs', { params }),
 };
 
 // ============ 行情 ============
@@ -127,8 +128,19 @@ export const dataApi = {
   download: (data: Record<string, any>) => client.post('/api/data/download', data),
   delete: (data: Record<string, any>) =>
     client.request({ method: 'DELETE', url: '/api/data/delete', data }),
-  importCsv: (data: Record<string, any>) => client.post('/api/data/import-csv', data),
-  exportCsv: (data: Record<string, any>) => client.post('/api/data/export-csv', data),
+  importCsv: (file: File, vt_symbol: string, interval: string = '1m') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return client.post(`/api/data/import-csv?vt_symbol=${vt_symbol}&interval=${interval}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  exportCsv: (vt_symbol: string, interval: string = '1m', start?: string, end?: string) =>
+    client.post('/api/data/export-csv', { vt_symbol, interval, start, end }, {
+      responseType: 'blob',
+    }),
+  preview: (vt_symbol: string, interval: string = '1m', limit: number = 10) =>
+    client.get(`/api/data/preview?vt_symbol=${vt_symbol}&interval=${interval}&limit=${limit}`),
 };
 
 // ============ 风控设置 ============
@@ -143,6 +155,18 @@ export const riskApi = {
   orderFlow: (limit?: number, status?: string) => client.get('/api/risk/order-flow', { params: { limit, status } }),
   orderFlowStats: () => client.get('/api/risk/order-flow/stats'),
   checkOrder: (data: Record<string, any>) => client.post('/api/risk/order-flow/check', data),
+  // 风险敞口
+  getRiskExposure: () => client.get('/api/risk/exposure'),
+  getExposureHistory: (params?: { hours?: number; interval?: string }) => client.get('/api/risk/exposure/history', { params }),
+  // 风控触发器
+  getRiskTriggers: () => client.get('/api/risk/triggers'),
+  updateRiskTrigger: (name: string, data: Record<string, any>) => client.put(`/api/risk/triggers/${name}`, data),
+  getRiskTriggerStatus: () => client.get('/api/risk/triggers/status'),
+  executeRiskAction: (data: Record<string, any>) => client.post('/api/risk/triggers/execute', data),
+  getTriggerEvents: (limit?: number) => client.get('/api/risk/triggers/events', { params: { limit } }),
+  // VaR分析
+  calculateVaR: (data: Record<string, any>) => client.post('/api/risk/var/calculate', data),
+  getVaRSensitivity: (params?: Record<string, any>) => client.get('/api/risk/var/sensitivity', { params }),
 };
 
 // ============ 模拟交易 ============
@@ -176,11 +200,26 @@ export const algoApi = {
 // ============ 机器学习 ============
 export const mlApi = {
   generateFeatures: (params: Record<string, any>) => client.post('/api/ml/features/generate', params),
+  previewFeatures: (data: Record<string, any>) => client.post('/api/ml/features/preview', data),
   trainModel: (data: Record<string, any>) => client.post('/api/ml/models/train', data),
   listModels: () => client.get('/api/ml/models'),
   getModelDetail: (name: string) => client.get(`/api/ml/models/${name}`),
+  getModelEvaluation: (name: string) => client.get(`/api/ml/models/${name}/evaluation`),
   predict: (name: string, data: Record<string, any>) => client.post(`/api/ml/models/${name}/predict`, data),
   deleteModel: (name: string) => client.delete(`/api/ml/models/${name}`),
+  // ML 信号
+  subscribeSignals: (data: { model_name: string; vt_symbol: string; interval?: number }) =>
+    client.post('/api/ml/signals/subscribe', data),
+  unsubscribeSignals: (vt_symbol: string) =>
+    client.post('/api/ml/signals/unsubscribe', null, { params: { vt_symbol } }),
+  getSignalSubscriptions: () => client.get('/api/ml/signals/subscriptions'),
+  getSignalHistory: (params?: { limit?: number; vt_symbol?: string; model_name?: string }) =>
+    client.get('/api/ml/signals/history', { params }),
+  clearSignalHistory: () => client.delete('/api/ml/signals/history'),
+  getSignalStatus: () => client.get('/api/ml/signals/status'),
+  // 模型对比与回测
+  compareModels: (modelNames: string[]) => client.post('/api/ml/models/compare', { model_names: modelNames }),
+  runMLBacktest: (data: Record<string, any>) => client.post('/api/ml/backtest', data),
 };
 
 // ============ 策略编辑器 ============
@@ -199,4 +238,21 @@ export const logsApi = {
   stats: (days?: number) => client.get('/api/logs/operations/stats', { params: { days } }),
   types: () => client.get('/api/logs/operations/types'),
   cleanup: (maxAgeDays: number) => client.delete('/api/logs/operations/cleanup', { params: { max_age_days: maxAgeDays } }),
+};
+
+// ============ 数据分析 ============
+export const analyticsApi = {
+  performanceSummary: (params?: { start_date?: string; end_date?: string }) =>
+    client.get('/api/analytics/performance/summary', { params }),
+  performanceAttribution: (params?: { start_date?: string; end_date?: string }) =>
+    client.get('/api/analytics/performance/attribution', { params }),
+  monthlyPerformance: (months?: number) =>
+    client.get('/api/analytics/performance/monthly', { params: { months } }),
+  dailyPerformance: (days?: number) =>
+    client.get('/api/analytics/performance/daily', { params: { days } }),
+  exportReport: (data: Record<string, any>) =>
+    client.post('/api/analytics/report/export', data),
+  reportTemplates: () => client.get('/api/analytics/report/templates'),
+  benchmarkComparison: (benchmark?: string) =>
+    client.get('/api/analytics/benchmark/compare', { params: { benchmark } }),
 };

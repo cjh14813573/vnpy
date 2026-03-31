@@ -1,9 +1,13 @@
-import { useEffect, useState, useMemo } from 'react';
-import { Typography, Card, Input, Select, Button, Table, Tag, Row, Col, Toast, Space, Spin, Modal } from '@douyinfe/semi-ui';
-import { IconPriceTag, IconPlus, IconMinus, IconSetting } from '@douyinfe/semi-icons';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Typography, Card, Input, Select, Button, Table, Tag, Row, Col, Toast, Space, Spin, Modal, Popover, Divider } from '@douyinfe/semi-ui';
+import { IconPriceTag, IconPlus, IconMinus, IconSetting, IconDelete } from '@douyinfe/semi-icons';
 import { tradingApi, marketApi } from '../api';
 import { useRealtimeStore } from '../stores/realtimeStore';
 import { useWebSocket, wsService } from '../services/websocket';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import ResponsivePageHeader from '../components/ResponsivePageHeader';
+import MobileTradingPanel from '../components/mobile/MobileTradingPanel';
 import type { Contract } from '../api/types';
 
 interface Account {
@@ -38,6 +42,9 @@ export default function TradingPage() {
 
   // 初始化 WebSocket
   useWebSocket();
+
+  // 响应式检测
+  const { isMobile } = useMediaQuery();
 
   // 加载合约列表
   useEffect(() => {
@@ -193,6 +200,20 @@ export default function TradingPage() {
     }
   };
 
+  // 批量撤单
+  const handleCancelAll = useCallback(async () => {
+    if (activeOrders.length === 0) {
+      Toast.info('没有活跃委托');
+      return;
+    }
+    try {
+      const res = await tradingApi.cancelAll(selectedAccount?.gateway_name);
+      Toast.success(`已撤销 ${res.data.count} 个委托`);
+    } catch (err: any) {
+      Toast.error(err.response?.data?.detail || '批量撤单失败');
+    }
+  }, [activeOrders.length, selectedAccount?.gateway_name]);
+
   const updateForm = (key: string, value: any) => setForm({ ...form, [key]: value });
 
   const orderCols = [
@@ -343,6 +364,221 @@ export default function TradingPage() {
       {connectionState === 'connected' ? '实时连接' : connectionState === 'connecting' ? '连接中' : '已断开'}
     </Tag>
   );
+
+  // 键盘快捷键配置
+  const shortcuts = useMemo(() => [
+    {
+      key: 'F1',
+      description: '买开 (做多开仓)',
+      action: () => {
+        if (selectedContract) {
+          setForm(prev => ({ ...prev, direction: '多', offset: '开' }));
+          Toast.info('已切换: 买开 (F1)');
+        }
+      },
+    },
+    {
+      key: 'F2',
+      description: '卖开 (做空开仓)',
+      action: () => {
+        if (selectedContract) {
+          setForm(prev => ({ ...prev, direction: '空', offset: '开' }));
+          Toast.info('已切换: 卖开 (F2)');
+        }
+      },
+    },
+    {
+      key: 'F3',
+      description: '买平 (平空仓)',
+      action: () => {
+        if (selectedContract) {
+          setForm(prev => ({ ...prev, direction: '多', offset: '平' }));
+          Toast.info('已切换: 买平 (F3)');
+        }
+      },
+    },
+    {
+      key: 'F4',
+      description: '卖平 (平多仓)',
+      action: () => {
+        if (selectedContract) {
+          setForm(prev => ({ ...prev, direction: '空', offset: '平' }));
+          Toast.info('已切换: 卖平 (F4)');
+        }
+      },
+    },
+    {
+      key: 'z',
+      ctrl: true,
+      description: '撤销最后订单',
+      action: () => {
+        const lastOrder = activeOrders[0];
+        if (lastOrder) {
+          handleCancel(lastOrder.vt_orderid);
+        } else {
+          Toast.info('没有可撤销的订单');
+        }
+      },
+    },
+    {
+      key: 'Enter',
+      ctrl: true,
+      description: '确认下单',
+      action: () => {
+        if (selectedContract && form.price && form.volume) {
+          handleSendOrder();
+        }
+      },
+    },
+    {
+      key: 'x',
+      ctrl: true,
+      description: '批量撤单',
+      action: handleCancelAll,
+    },
+    {
+      key: 'Escape',
+      description: '关闭弹窗',
+      action: () => {
+        if (stopLossTakeProfitModal) {
+          setStopLossTakeProfitModal(false);
+        }
+      },
+    },
+  ], [selectedContract, activeOrders, form.price, form.volume, stopLossTakeProfitModal, handleCancelAll]);
+
+  // 使用键盘快捷键
+  useKeyboardShortcuts(shortcuts, !!selectedContract);
+
+  // 快捷键帮助内容
+  const ShortcutHelpContent = () => (
+    <div style={{ padding: 12, maxWidth: 300 }}>
+      <Typography.Text strong style={{ display: 'block', marginBottom: 12 }}>键盘快捷键</Typography.Text>
+      {shortcuts.map((s, idx) => (
+        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Typography.Text size="small">{s.description}</Typography.Text>
+          <Tag size="small">{s.ctrl ? 'Ctrl+' : ''}{s.key}</Tag>
+        </div>
+      ))}
+      <Divider style={{ margin: '12px 0' }} />
+      <Typography.Text type="tertiary" size="small">
+        提示: 快捷键仅在选中合约时生效
+      </Typography.Text>
+    </div>
+  );
+
+  // 移动端简化布局
+  if (isMobile) {
+    return (
+      <div>
+        <ResponsivePageHeader
+          title="交易面板"
+          extra={<ConnectionIndicator />}
+        />
+
+        {/* 账户概览 */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, overflowX: 'auto' }}>
+          {accounts.slice(0, 3).map((account) => (
+            <div
+              key={account.vt_accountid}
+              onClick={() => handleSelectAccount(account)}
+              style={{
+                minWidth: 140,
+                borderRadius: 8,
+                border: selectedAccount?.vt_accountid === account.vt_accountid
+                  ? '2px solid var(--semi-color-primary)'
+                  : '1px solid var(--semi-color-border)',
+                padding: 12,
+                background: 'var(--semi-color-bg-1)',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+                {account.gateway_name}
+                {account.account_type === 'paper' && <Tag color="blue" size="small" style={{ marginLeft: 4 }}>模拟</Tag>}
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
+                ¥{(account.available || 0).toFixed(0)}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 快速交易 */}
+        <MobileTradingPanel vtSymbol={selectedContract?.vt_symbol} />
+
+        {/* 持仓列表 */}
+        <Card title={`持仓 (${Object.keys(positions).length})`} style={{ marginBottom: 12 }}>
+          {Object.entries(positions).slice(0, 5).map(([vtSymbol, pos]: [string, any]) => (
+            <div
+              key={vtSymbol}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '8px 0',
+                borderBottom: '1px solid var(--semi-color-border)',
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 500 }}>{vtSymbol}</div>
+                <Tag size="small" color={pos.direction === '多' ? 'red' : 'green'}>
+                  {pos.direction} {pos.volume}手
+                </Tag>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ color: (pos.pnl || 0) >= 0 ? '#f5222d' : '#52c41a' }}>
+                  {pos.pnl >= 0 ? '+' : ''}{pos.pnl?.toFixed(2)}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+                  均价 {pos.price?.toFixed(2)}
+                </div>
+              </div>
+            </div>
+          ))}
+          {Object.keys(positions).length === 0 && (
+            <div style={{ textAlign: 'center', padding: 24, color: 'var(--semi-color-text-2)' }}>
+              暂无持仓
+            </div>
+          )}
+        </Card>
+
+        {/* 当前委托 */}
+        <Card title={`当前委托 (${activeOrders.length})`}>
+          {activeOrders.slice(0, 5).map((order: any) => (
+            <div
+              key={order.vt_orderid}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '8px 0',
+                borderBottom: '1px solid var(--semi-color-border)',
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 500 }}>{order.vt_symbol}</div>
+                <Tag size="small" color={order.direction === '多' ? 'red' : 'green'}>
+                  {order.direction} {order.volume}手 @ {order.price}
+                </Tag>
+              </div>
+              <Button
+                size="small"
+                type="danger"
+                onClick={() => handleCancel(order.vt_orderid)}
+              >
+                撤
+              </Button>
+            </div>
+          ))}
+          {activeOrders.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 24, color: 'var(--semi-color-text-2)' }}>
+              暂无委托
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -584,7 +820,23 @@ export default function TradingPage() {
           </Card>
         </Col>
         <Col span={16}>
-          <Typography.Title heading={5}>活跃委托</Typography.Title>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Typography.Title heading={5} style={{ margin: 0 }}>活跃委托 ({activeOrders.length})</Typography.Title>
+            <Space>
+              <Button
+                size="small"
+                type="danger"
+                icon={<IconDelete />}
+                onClick={handleCancelAll}
+                disabled={activeOrders.length === 0}
+              >
+                全部撤销 (Ctrl+X)
+              </Button>
+              <Popover content={<ShortcutHelpContent />} trigger="click" position="bottomRight">
+                <Button size="small">快捷键</Button>
+              </Popover>
+            </Space>
+          </div>
           <Card style={{ marginBottom: 16, borderRadius: 12 }}>
             <Table columns={orderCols} dataSource={activeOrders} pagination={false} size="small" empty="暂无活跃委托" />
           </Card>

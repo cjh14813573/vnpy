@@ -4,7 +4,10 @@ import { IconCoinMoneyStroked, IconPieChartStroked, IconOrderedList, IconServer 
 import { tradingApi, systemApi } from '../api';
 import { useRealtimeStore } from '../stores/realtimeStore';
 import { useWebSocket } from '../services/websocket';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import StatCard from '../components/StatCard';
+import MobileDashboard from '../components/mobile/MobileDashboard';
+import ResponsivePageHeader from '../components/ResponsivePageHeader';
 
 const { Title } = Typography;
 
@@ -162,6 +165,22 @@ export default function DashboardPage() {
       {connectionState === 'connected' ? '实时连接' : connectionState === 'connecting' ? '连接中' : '已断开'}
     </Tag>
   );
+
+  // 响应式检测
+  const { isMobile } = useMediaQuery();
+
+  // 移动端布局
+  if (isMobile) {
+    return (
+      <div>
+        <ResponsivePageHeader
+          title="总览"
+          extra={<ConnectionIndicator />}
+        />
+        <MobileDashboard />
+      </div>
+    );
+  }
 
   return (
     <div>

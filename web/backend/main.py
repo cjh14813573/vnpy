@@ -30,6 +30,7 @@ from routers.editor import router as editor_router
 from routers.ml import router as ml_router
 from routers.logs import router as logs_router
 from routers.settings import router as settings_router
+from routers.analytics import router as analytics_router
 
 
 @asynccontextmanager
@@ -129,6 +130,7 @@ app.include_router(editor_router)
 app.include_router(ml_router)
 app.include_router(logs_router)
 app.include_router(settings_router)
+app.include_router(analytics_router)
 
 
 @app.get("/")

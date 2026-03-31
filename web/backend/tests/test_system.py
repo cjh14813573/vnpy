@@ -79,10 +79,56 @@ class TestExchanges:
 
 
 class TestLogs:
-    """日志测试"""
+    """系统日志测试"""
 
     def test_get_logs(self, client, auth_headers):
         """获取系统日志"""
         resp = client.get("/api/system/logs", headers=auth_headers)
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        data = resp.json()
+        assert "data" in data
+        assert "total" in data
+        assert isinstance(data["data"], list)
+
+    def test_get_logs_with_level_filter(self, client, auth_headers):
+        """按级别筛选日志"""
+        resp = client.get("/api/system/logs?level=INFO", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "data" in data
+        # 验证返回的日志级别匹配
+        for log in data["data"]:
+            assert log.get("level", "").upper() == "INFO"
+
+    def test_get_logs_with_keyword_search(self, client, auth_headers):
+        """按关键词搜索日志"""
+        resp = client.get("/api/system/logs?keyword=test", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "data" in data
+
+    def test_get_logs_with_source_filter(self, client, auth_headers):
+        """按来源筛选日志"""
+        resp = client.get("/api/system/logs?source=CTP", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "data" in data
+
+    def test_get_logs_with_time_range(self, client, auth_headers):
+        """按时间范围筛选日志"""
+        resp = client.get(
+            "/api/system/logs?start_time=2024-01-01T00:00:00&end_time=2024-12-31T23:59:59",
+            headers=auth_headers
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "data" in data
+
+    def test_get_logs_with_limit(self, client, auth_headers):
+        """限制返回条数"""
+        resp = client.get("/api/system/logs?limit=10", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "data" in data
+        assert "total" in data
+        assert len(data["data"]) <= 10

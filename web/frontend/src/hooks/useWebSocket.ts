@@ -2,9 +2,17 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
 
+interface WSMessage {
+  type: string;
+  topic?: string;
+  data?: any;
+  timestamp?: number;
+}
+
 export function useWebSocket(handlers?: Record<string, (data: any) => void>) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
+  const [lastMessage, setLastMessage] = useState<WSMessage | null>(null);
   const reconnectTimer = useRef<number>(0);
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
@@ -30,6 +38,7 @@ export function useWebSocket(handlers?: Record<string, (data: any) => void>) {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
+        setLastMessage(msg);
         if (msg.topic && handlersRef.current?.[msg.topic]) {
           handlersRef.current[msg.topic](msg.data);
         }
@@ -61,5 +70,5 @@ export function useWebSocket(handlers?: Record<string, (data: any) => void>) {
     };
   }, [connect]);
 
-  return { connected };
+  return { connected, lastMessage };
 }

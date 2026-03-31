@@ -13,13 +13,19 @@ import StrategyDetailPage from './pages/StrategyDetailPage';
 import BacktestPage from './pages/BacktestPage';
 import DataPage from './pages/DataPage';
 import RiskPage from './pages/RiskPage';
+import RiskExposurePage from './pages/RiskExposurePage';
 import SettingsPage from './pages/SettingsPage';
 import LogsPage from './pages/LogsPage';
+import SystemLogsPage from './pages/SystemLogsPage';
 import AlgoPage from './pages/AlgoPage';
 import PaperPage from './pages/PaperPage';
 import GatewayPage from './pages/GatewayPage';
 import EditorPage from './pages/EditorPage';
 import MLPage from './pages/MLPage';
+import FeatureEngineeringPage from './pages/FeatureEngineeringPage';
+import MLSignalMonitorPage from './pages/MLSignalMonitorPage';
+import MLModelComparisonPage from './pages/MLModelComparisonPage';
+import TradingAnalyticsPage from './pages/TradingAnalyticsPage';
 import { useThemeStore } from './stores/themeStore';
 
 function AppContent() {
@@ -48,13 +54,19 @@ function AppContent() {
               <Route path="backtest" element={<BacktestPage />} />
               <Route path="data" element={<DataPage />} />
               <Route path="risk" element={<RiskPage />} />
+              <Route path="risk/exposure" element={<RiskExposurePage />} />
               <Route path="logs" element={<LogsPage />} />
+              <Route path="system-logs" element={<SystemLogsPage />} />
               <Route path="algo" element={<AlgoPage />} />
               <Route path="paper" element={<PaperPage />} />
               <Route path="gateway" element={<GatewayPage />} />
               <Route path="editor" element={<EditorPage />} />
               <Route path="editor/:className" element={<EditorPage />} />
               <Route path="ml" element={<MLPage />} />
+              <Route path="ml/features" element={<FeatureEngineeringPage />} />
+              <Route path="ml/signals" element={<MLSignalMonitorPage />} />
+              <Route path="ml/compare" element={<MLModelComparisonPage />} />
+              <Route path="analytics" element={<TradingAnalyticsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" />} />
