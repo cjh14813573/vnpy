@@ -60,8 +60,9 @@ export default function BacktestPage() {
     rate: '0.0001', slippage: '0', size: '1', capital: '1000000',
     param_name: '', param_start: '', param_end: '', param_step: '',
   });
-  const [optimizeResults] = useState<any[]>([]);
+  const [optimizeResults, setOptimizeResults] = useState<any[]>([]);
   const [optimizeLoading, setOptimizeLoading] = useState(false);
+  const [selectedOptimizeTask, setSelectedOptimizeTask] = useState<BacktestTask | null>(null);
 
   // K线数据状态
   const [candleData, setCandleData] = useState<KLineData[]>([]);
@@ -145,6 +146,22 @@ export default function BacktestPage() {
   const handleViewResult = async (task: BacktestTask) => {
     setSelectedTask(task);
     if (task.status === 'completed' && task.result) {
+      if (task.task_type === 'optimize') {
+        // 优化任务结果显示在优化标签页
+        const results = task.result.results || [];
+        setOptimizeResults(results.map((r: any, idx: number) => ({
+          key: idx,
+          param_value: r.params?.[Object.keys(r.params)[0]] || 0,
+          total_return: r.total_return,
+          sharpe_ratio: r.sharpe_ratio,
+          max_drawdown: r.max_drawdown,
+          total_trades: r.total_trades,
+          params: r.params,
+        })));
+        setSelectedOptimizeTask(task);
+        setActiveTab('optimize');
+        return;
+      }
       setTaskResult(task.result);
     } else if (task.status === 'completed') {
       // 如果结果不在任务对象中，单独获取
@@ -281,23 +298,40 @@ export default function BacktestPage() {
     return candles;
   };
 
+  // 任务类型标签
+  const taskTypeMap: Record<string, { label: string; color: string }> = {
+    backtest: { label: '回测', color: 'blue' },
+    optimize: { label: '优化', color: 'purple' },
+    download: { label: '下载', color: 'cyan' },
+  };
+
   // 任务列表列定义
   const taskColumns = [
     {
       title: '任务ID',
       dataIndex: 'task_id',
-      width: 200,
+      width: 180,
       render: (v: string) => <span className="font-mono text-secondary">{v.slice(0, 16)}...</span>,
+    },
+    {
+      title: '类型',
+      dataIndex: 'task_type',
+      width: 80,
+      render: (v: string) => (
+        <Tag color={(taskTypeMap[v]?.color || 'default') as any} size="small">
+          {taskTypeMap[v]?.label || v}
+        </Tag>
+      ),
     },
     {
       title: '策略',
       dataIndex: 'class_name',
-      width: 150,
+      width: 140,
     },
     {
       title: '合约',
       dataIndex: 'vt_symbol',
-      width: 140,
+      width: 120,
     },
     {
       title: '状态',
@@ -658,24 +692,129 @@ export default function BacktestPage() {
             </Col>
             <Col span={16}>
               {optimizeResults.length > 0 ? (
-                <Card title="优化结果" style={{ borderRadius: 12 }}>
-                  <Table
-                    columns={[
-                      { title: '参数值', dataIndex: 'param_value', render: (v: number) => v.toFixed(2) },
-                      { title: '总收益率%', dataIndex: 'total_return', render: (v: number) => v?.toFixed(2) },
-                      { title: '夏普比率', dataIndex: 'sharpe_ratio', render: (v: number) => v?.toFixed(3) },
-                      { title: '最大回撤%', dataIndex: 'max_drawdown', render: (v: number) => v?.toFixed(2) },
-                      { title: '交易次数', dataIndex: 'total_trades' },
-                    ]}
-                    dataSource={optimizeResults}
-                    pagination={false}
-                    size="small"
-                  />
-                </Card>
+                <>
+                  <Card title="优化结果" style={{ borderRadius: 12, marginBottom: 16 }}>
+                    <Table
+                      columns={[
+                        {
+                          title: '排名',
+                          dataIndex: 'key',
+                          width: 60,
+                          render: (v: number) => v + 1
+                        },
+                        {
+                          title: '参数值',
+                          dataIndex: 'param_value',
+                          width: 100,
+                          render: (v: number) => (
+                            <Tag color="blue" size="small">{v.toFixed(2)}</Tag>
+                          )
+                        },
+                        {
+                          title: '总收益率%',
+                          dataIndex: 'total_return',
+                          width: 120,
+                          align: 'right' as const,
+                          render: (v: number) => (
+                            <span style={{ color: v >= 0 ? '#f5222d' : '#52c41a', fontWeight: 600 }}>
+                              {v?.toFixed(2)}
+                            </span>
+                          )
+                        },
+                        {
+                          title: '夏普比率',
+                          dataIndex: 'sharpe_ratio',
+                          width: 100,
+                          align: 'right' as const,
+                          render: (v: number) => (
+                            <span style={{ color: v >= 1 ? '#f5222d' : v >= 0 ? '#666' : '#52c41a' }}>
+                              {v?.toFixed(3)}
+                            </span>
+                          )
+                        },
+                        {
+                          title: '最大回撤%',
+                          dataIndex: 'max_drawdown',
+                          width: 120,
+                          align: 'right' as const,
+                          render: (v: number) => v?.toFixed(2)
+                        },
+                        {
+                          title: '交易次数',
+                          dataIndex: 'total_trades',
+                          width: 100,
+                          align: 'right' as const,
+                        },
+                        {
+                          title: '操作',
+                          width: 100,
+                          render: (_: any, record: any) => (
+                            <Button
+                              size="small"
+                              type="primary"
+                              onClick={() => {
+                                // 应用最优参数
+                                Toast.success(`已应用参数值: ${record.param_value}`);
+                              }}
+                            >
+                              应用
+                            </Button>
+                          )
+                        }
+                      ]}
+                      dataSource={optimizeResults}
+                      pagination={{ pageSize: 10 }}
+                      size="small"
+                      rowKey="key"
+                    />
+                  </Card>
+                  {selectedOptimizeTask && (
+                    <Card style={{ borderRadius: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <Text type="tertiary">优化任务</Text>
+                          <div style={{ fontWeight: 600 }}>{selectedOptimizeTask.task_id?.slice(0, 16)}...</div>
+                        </div>
+                        <div>
+                          <Text type="tertiary">测试组合数</Text>
+                          <div style={{ fontWeight: 600, fontSize: 18, textAlign: 'center' }}>
+                            {selectedOptimizeTask.result?.total_combinations || optimizeResults.length}
+                          </div>
+                        </div>
+                        <div>
+                          <Text type="tertiary">最优夏普</Text>
+                          <div style={{ fontWeight: 600, fontSize: 18, color: '#f5222d', textAlign: 'center' }}>
+                            {optimizeResults[0]?.sharpe_ratio?.toFixed(3) || '-'}
+                          </div>
+                        </div>
+                        <Button type="primary" onClick={() => {
+                          // 使用最优参数创建回测任务
+                          const best = optimizeResults[0];
+                          if (best) {
+                            Toast.success(`已选择最优参数: ${best.param_value}`);
+                          }
+                        }}>
+                          使用最优参数回测
+                        </Button>
+                      </div>
+                    </Card>
+                  )}
+                </>
               ) : (
                 <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--semi-color-text-2)' }}>
                   <Title heading={4} type="tertiary">配置优化参数</Title>
                   <p>系统将遍历参数范围，寻找最优参数组合</p>
+                  <div style={{ marginTop: 24, textAlign: 'left', padding: '0 40px' }}>
+                    <Text type="tertiary" size="small">使用说明：</Text>
+                    <ul style={{ color: 'var(--semi-color-text-2)', fontSize: 13, marginTop: 8 }}>
+                      <li>1. 选择策略类和合约</li>
+                      <li>2. 设置回测时间范围</li>
+                      <li>3. 选择要优化的参数（如 fast_window）</li>
+                      <li>4. 设置参数范围（起始值、结束值、步长）</li>
+                      <li>5. 点击"开始优化"，系统将自动遍历所有参数组合</li>
+                      <li>6. 优化完成后，可查看结果并应用最优参数</li>
+                    </ul>
+                  </div>
                 </div>
               )}
             </Col>

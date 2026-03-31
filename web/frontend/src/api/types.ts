@@ -126,6 +126,9 @@ export interface BacktestResult {
   losing_trades: number;
   win_rate: number;
   trades?: any[];
+  // 优化结果
+  results?: any[];
+  total_combinations?: number;
 }
 
 export type BacktestTaskType = 'backtest' | 'optimize' | 'download';
