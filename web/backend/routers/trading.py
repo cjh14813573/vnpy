@@ -347,10 +347,21 @@ class ConditionalOrderRequest(BaseModel):
     price: float
     offset: str
     gateway_name: str
-    trigger_type: str  # price_above, price_below, time
+    trigger_type: str  # price_above, price_below, time, stop_loss, take_profit
     trigger_price: Optional[float] = None
     trigger_time: Optional[str] = None
     reference: Optional[str] = ""
+
+
+class StopLossTakeProfitRequest(BaseModel):
+    """止盈止损订单请求"""
+    vt_symbol: str
+    direction: str  # 持仓方向: 多/空
+    volume: float
+    stop_loss_price: Optional[float] = None  # 止损价
+    take_profit_price: Optional[float] = None  # 止盈价
+    gateway_name: str = "CTP"
+    account_type: str = "real"  # real/paper
 
 
 @router.post("/conditional")
@@ -475,3 +486,191 @@ async def cancel_all_conditional_orders(
     )
 
     return {"message": f"已取消 {count} 个条件单", "count": count}
+
+
+# ============ 止盈止损订单 ============
+# 内存存储止盈止损订单
+_stop_loss_take_profit_orders: dict[str, dict] = {}
+
+
+def _check_stop_loss_take_profit():
+    """检查止盈止损触发条件（应由定时任务调用）"""
+    from bridge import bridge
+
+    for order_id, order in _stop_loss_take_profit_orders.items():
+        if order["status"] != "pending":
+            continue
+
+        # 获取最新价格
+        tick = bridge.get_tick(order["vt_symbol"])
+        if not tick:
+            continue
+
+        last_price = tick.get("last_price", 0)
+        direction = order["direction"]  # 持仓方向
+        stop_loss = order.get("stop_loss_price")
+        take_profit = order.get("take_profit_price")
+
+        triggered = False
+        trigger_type = None
+
+        # 多单：跌破止损价或涨破止盈价
+        if direction == "多":
+            if stop_loss and last_price <= stop_loss:
+                triggered = True
+                trigger_type = "stop_loss"
+            elif take_profit and last_price >= take_profit:
+                triggered = True
+                trigger_type = "take_profit"
+        # 空单：涨破止损价或跌破止盈价
+        else:
+            if stop_loss and last_price >= stop_loss:
+                triggered = True
+                trigger_type = "stop_loss"
+            elif take_profit and last_price <= take_profit:
+                triggered = True
+                trigger_type = "take_profit"
+
+        if triggered:
+            # 执行平仓
+            try:
+                parts = order["vt_symbol"].split(".")
+                symbol = parts[0]
+                exchange = parts[1] if len(parts) > 1 else "SHFE"
+
+                order_req = {
+                    "symbol": symbol,
+                    "exchange": exchange,
+                    "direction": "空" if direction == "多" else "多",  # 反向平仓
+                    "type": "市价",
+                    "volume": order["volume"],
+                    "price": last_price,
+                    "offset": "平",
+                    "gateway_name": order.get("gateway_name", "CTP"),
+                }
+
+                # 模拟盘或实盘
+                if order.get("account_type") == "paper":
+                    # 使用模拟盘引擎
+                    paper = bridge._get_paper_engine()
+                    if paper:
+                        vt_orderid = paper.send_order(
+                            symbol=symbol,
+                            exchange=exchange,
+                            direction="空" if direction == "多" else "多",
+                            type="市价",
+                            volume=order["volume"],
+                            price=last_price,
+                            offset="平",
+                        )
+                else:
+                    vt_orderid = bridge.send_order(order_req)
+
+                order["status"] = "triggered"
+                order["triggered_at"] = datetime.now().isoformat()
+                order["trigger_type"] = trigger_type
+                order["trigger_price"] = last_price
+                order["vt_orderid"] = vt_orderid
+
+            except Exception as e:
+                order["status"] = "error"
+                order["error"] = str(e)
+
+
+@router.post("/stop-loss-take-profit")
+async def create_stop_loss_take_profit(
+    req: StopLossTakeProfitRequest,
+    request: Request = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """创建止盈止损订单"""
+    import uuid
+
+    ip, ua = get_client_info(request)
+    username = current_user["username"]
+
+    order_id = f"SLTP-{uuid.uuid4().hex[:12].upper()}"
+
+    order = {
+        "id": order_id,
+        "vt_symbol": req.vt_symbol,
+        "direction": req.direction,
+        "volume": req.volume,
+        "stop_loss_price": req.stop_loss_price,
+        "take_profit_price": req.take_profit_price,
+        "gateway_name": req.gateway_name,
+        "account_type": req.account_type,
+        "status": "pending",
+        "created_at": datetime.now().isoformat(),
+        "created_by": username,
+    }
+
+    _stop_loss_take_profit_orders[order_id] = order
+
+    operation_log.log(
+        username=username,
+        operation=OperationType.ORDER_SEND,
+        target_type="stop_loss_take_profit",
+        target_id=order_id,
+        details=json.dumps(order),
+        ip_address=ip,
+        user_agent=ua,
+        success=True,
+    )
+
+    return {"id": order_id, "message": "止盈止损订单创建成功", "order": order}
+
+
+@router.get("/stop-loss-take-profit")
+async def get_stop_loss_take_profit_orders(
+    status: Optional[str] = Query(None, description="筛选状态: pending, triggered, cancelled, error"),
+    vt_symbol: Optional[str] = Query(None, description="筛选合约")
+):
+    """获取止盈止损订单列表"""
+    orders = list(_stop_loss_take_profit_orders.values())
+    if status:
+        orders = [o for o in orders if o["status"] == status]
+    if vt_symbol:
+        orders = [o for o in orders if o["vt_symbol"] == vt_symbol]
+    return orders[::-1]
+
+
+@router.post("/stop-loss-take-profit/{order_id}/cancel")
+async def cancel_stop_loss_take_profit(
+    order_id: str,
+    request: Request = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """取消止盈止损订单"""
+    ip, ua = get_client_info(request)
+    username = current_user["username"]
+
+    if order_id not in _stop_loss_take_profit_orders:
+        raise HTTPException(status_code=404, detail="订单不存在")
+
+    order = _stop_loss_take_profit_orders[order_id]
+    if order["status"] != "pending":
+        raise HTTPException(status_code=400, detail="只能取消待触发的订单")
+
+    order["status"] = "cancelled"
+    order["cancelled_at"] = datetime.now().isoformat()
+
+    operation_log.log(
+        username=username,
+        operation=OperationType.ORDER_CANCEL,
+        target_type="stop_loss_take_profit",
+        target_id=order_id,
+        details=json.dumps({"order_id": order_id}),
+        ip_address=ip,
+        user_agent=ua,
+        success=True,
+    )
+
+    return {"message": "止盈止损订单已取消"}
+
+
+@router.post("/stop-loss-take-profit/check")
+async def manual_check_stop_loss_take_profit():
+    """手动触发止盈止损检查（用于测试）"""
+    _check_stop_loss_take_profit()
+    return {"message": "检查完成"}

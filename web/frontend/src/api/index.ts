@@ -55,6 +55,10 @@ export const tradingApi = {
   conditionalOrders: (status?: string) => client.get('/api/trading/conditional', { params: status ? { status } : undefined }),
   cancelConditional: (orderId: string) => client.post(`/api/trading/conditional/${orderId}/cancel`),
   cancelAllConditional: () => client.post('/api/trading/conditional/cancel-all'),
+  // 止盈止损
+  createStopLossTakeProfit: (data: Record<string, any>) => client.post('/api/trading/stop-loss-take-profit', data),
+  stopLossTakeProfitOrders: (params?: Record<string, any>) => client.get('/api/trading/stop-loss-take-profit', { params }),
+  cancelStopLossTakeProfit: (orderId: string) => client.post(`/api/trading/stop-loss-take-profit/${orderId}/cancel`),
 };
 
 // ============ 策略 ============

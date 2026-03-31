@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Typography, Card, Input, Select, Button, Table, Tag, Row, Col, Toast, Space, Spin } from '@douyinfe/semi-ui';
-import { IconPriceTag, IconPlus, IconMinus } from '@douyinfe/semi-icons';
+import { Typography, Card, Input, Select, Button, Table, Tag, Row, Col, Toast, Space, Spin, Modal } from '@douyinfe/semi-ui';
+import { IconPriceTag, IconPlus, IconMinus, IconSetting } from '@douyinfe/semi-icons';
 import { tradingApi, marketApi } from '../api';
 import { useRealtimeStore } from '../stores/realtimeStore';
 import { useWebSocket, wsService } from '../services/websocket';
@@ -23,6 +23,13 @@ export default function TradingPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+
+  // 止盈止损相关状态
+  const [stopLossTakeProfitModal, setStopLossTakeProfitModal] = useState(false);
+  const [selectedPosition, setSelectedPosition] = useState<any>(null);
+  const [stopLossPrice, setStopLossPrice] = useState('');
+  const [takeProfitPrice, setTakeProfitPrice] = useState('');
+  const [stopLossTakeProfitOrders, setStopLossTakeProfitOrders] = useState<any[]>([]);
 
   const [form, setForm] = useState({
     symbol: '', exchange: 'SHFE', direction: '多', type: '限价',
@@ -219,6 +226,25 @@ export default function TradingPage() {
     { title: '盈亏', dataIndex: 'pnl', align: 'right' as const, width: 100, render: (v: number) => (
       <Typography.Text type={v >= 0 ? 'success' : 'danger'} strong>{v?.toFixed(2)}</Typography.Text>
     )},
+    {
+      title: '止盈止损',
+      width: 100,
+      render: (_: any, record: any) => {
+        const hasOrder = stopLossTakeProfitOrders.some(
+          (o: any) => o.vt_symbol === record.vt_symbol && o.status === 'pending'
+        );
+        return (
+          <Button
+            size="small"
+            type={hasOrder ? 'primary' : 'tertiary'}
+            icon={<IconSetting />}
+            onClick={() => openStopLossTakeProfit(record)}
+          >
+            {hasOrder ? '已设置' : '设置'}
+          </Button>
+        );
+      },
+    },
   ];
 
   const labelStyle = { marginBottom: 12, display: 'block' };
@@ -232,6 +258,72 @@ export default function TradingPage() {
       account_type: account.account_type,
     }));
   };
+
+  // 加载止盈止损订单
+  const loadStopLossTakeProfitOrders = async () => {
+    try {
+      const res = await tradingApi.stopLossTakeProfitOrders({ status: 'pending' });
+      setStopLossTakeProfitOrders(res.data || []);
+    } catch (err) {
+      console.error('加载止盈止损订单失败:', err);
+    }
+  };
+
+  // 打开止盈止损设置
+  const openStopLossTakeProfit = (position: any) => {
+    setSelectedPosition(position);
+    // 查找是否已有设置
+    const existing = stopLossTakeProfitOrders.find(
+      (o: any) => o.vt_symbol === position.vt_symbol && o.status === 'pending'
+    );
+    if (existing) {
+      setStopLossPrice(existing.stop_loss_price?.toString() || '');
+      setTakeProfitPrice(existing.take_profit_price?.toString() || '');
+    } else {
+      setStopLossPrice('');
+      setTakeProfitPrice('');
+    }
+    setStopLossTakeProfitModal(true);
+  };
+
+  // 保存止盈止损设置
+  const handleSaveStopLossTakeProfit = async () => {
+    if (!selectedPosition) return;
+
+    try {
+      await tradingApi.createStopLossTakeProfit({
+        vt_symbol: selectedPosition.vt_symbol,
+        direction: selectedPosition.direction,
+        volume: selectedPosition.volume,
+        stop_loss_price: stopLossPrice ? parseFloat(stopLossPrice) : undefined,
+        take_profit_price: takeProfitPrice ? parseFloat(takeProfitPrice) : undefined,
+        gateway_name: selectedPosition.gateway_name || 'CTP',
+        account_type: selectedPosition.account_type || 'real',
+      });
+      Toast.success('止盈止损设置成功');
+      setStopLossTakeProfitModal(false);
+      loadStopLossTakeProfitOrders();
+    } catch (err: any) {
+      Toast.error(err.response?.data?.detail || '设置失败');
+    }
+  };
+
+  // 取消止盈止损
+  const handleCancelStopLossTakeProfit = async (orderId: string) => {
+    try {
+      await tradingApi.cancelStopLossTakeProfit(orderId);
+      Toast.success('已取消');
+      loadStopLossTakeProfitOrders();
+    } catch (err: any) {
+      Toast.error(err.response?.data?.detail || '取消失败');
+    }
+  };
+
+  useEffect(() => {
+    loadStopLossTakeProfitOrders();
+    const timer = setInterval(loadStopLossTakeProfitOrders, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   // 计算总资产
   const totalBalance = useMemo(() => {
@@ -451,6 +543,94 @@ export default function TradingPage() {
           </Card>
         </Col>
       </Row>
+
+      {/* 止盈止损设置弹窗 */}
+      <Modal
+        title={`设置止盈止损 - ${selectedPosition?.vt_symbol || ''}`}
+        visible={stopLossTakeProfitModal}
+        onCancel={() => setStopLossTakeProfitModal(false)}
+        footer={(
+          <Space>
+            <Button onClick={() => setStopLossTakeProfitModal(false)}>取消</Button>
+            <Button type="primary" onClick={handleSaveStopLossTakeProfit}>保存</Button>
+          </Space>
+        )}
+      >
+        <div style={{ padding: '20px 0' }}>
+          <Row gutter={16} style={{ marginBottom: 16 }}>
+            <Col span={12}>
+              <label style={{ display: 'block', marginBottom: 8 }}>合约</label>
+              <Input value={selectedPosition?.vt_symbol || ''} disabled />
+            </Col>
+            <Col span={12}>
+              <label style={{ display: 'block', marginBottom: 8 }}>持仓方向</label>
+              <Tag color={selectedPosition?.direction === '多' ? 'green' : 'red'}>
+                {selectedPosition?.direction}
+              </Tag>
+            </Col>
+          </Row>
+          <Row gutter={16} style={{ marginBottom: 16 }}>
+            <Col span={12}>
+              <label style={{ display: 'block', marginBottom: 8 }}>持仓数量</label>
+              <Input value={selectedPosition?.volume || 0} disabled />
+            </Col>
+            <Col span={12}>
+              <label style={{ display: 'block', marginBottom: 8 }}>持仓成本</label>
+              <Input value={selectedPosition?.price?.toFixed(2) || '0.00'} disabled />
+            </Col>
+          </Row>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 8 }}>
+              止损价格
+              {selectedPosition?.direction === '多'
+                ? <span style={{ color: '#52c41a', marginLeft: 8 }}>(低于成本价 {selectedPosition?.price ? ((parseFloat(stopLossPrice || '0') - selectedPosition.price) / selectedPosition.price * 100).toFixed(2) : '0'}%)</span>
+                : <span style={{ color: '#f5222d', marginLeft: 8 }}>(高于成本价)</span>
+              }
+            </label>
+            <Input
+              type="number"
+              value={stopLossPrice}
+              onChange={(v) => setStopLossPrice(v)}
+              placeholder={selectedPosition?.direction === '多' ? '低于持仓成本' : '高于持仓成本'}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: 8 }}>
+              止盈价格
+              {selectedPosition?.direction === '多'
+                ? <span style={{ color: '#f5222d', marginLeft: 8 }}>(高于成本价)</span>
+                : <span style={{ color: '#52c41a', marginLeft: 8 }}>(低于成本价)</span>
+              }
+            </label>
+            <Input
+              type="number"
+              value={takeProfitPrice}
+              onChange={(v) => setTakeProfitPrice(v)}
+              placeholder={selectedPosition?.direction === '多' ? '高于持仓成本' : '低于持仓成本'}
+            />
+          </div>
+
+          {/* 已设置的止盈止损列表 */}
+          {stopLossTakeProfitOrders.filter((o: any) => o.vt_symbol === selectedPosition?.vt_symbol && o.status === 'pending').length > 0 && (
+            <div style={{ marginTop: 24, padding: 16, background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
+              <Typography.Text strong>当前设置</Typography.Text>
+              {stopLossTakeProfitOrders
+                .filter((o: any) => o.vt_symbol === selectedPosition?.vt_symbol && o.status === 'pending')
+                .map((order: any) => (
+                  <div key={order.id} style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      {order.stop_loss_price && <Tag color="red">止损 {order.stop_loss_price}</Tag>}
+                      {order.take_profit_price && <Tag color="green">止盈 {order.take_profit_price}</Tag>}
+                    </div>
+                    <Button size="small" type="danger" onClick={() => handleCancelStopLossTakeProfit(order.id)}>
+                      取消
+                    </Button>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
