@@ -30,7 +30,7 @@ const menuItems = [
     text: '风控管理',
     icon: <IconSafe />,
     items: [
-      { itemKey: '/risk', text: '风控规则' },
+      { itemKey: '/risk/rules', text: '风控规则' },
       { itemKey: '/risk/exposure', text: '风险敞口' },
     ],
   },
@@ -40,7 +40,7 @@ const menuItems = [
     text: '机器学习',
     icon: <IconBulb />,
     items: [
-      { itemKey: '/ml', text: '模型管理' },
+      { itemKey: '/ml/models', text: '模型管理' },
       { itemKey: '/ml/features', text: '特征工程' },
       { itemKey: '/ml/signals', text: '信号监控' },
       { itemKey: '/ml/compare', text: '模型对比' },
@@ -78,17 +78,30 @@ export default function AppLayout() {
   // 计算选中的菜单项 - 优先匹配最精确的路径
   const getSelectedKeys = () => {
     const pathname = location.pathname;
-    // 子路径优先匹配
-    const allPaths = [
-      '/ml/compare', '/ml/signals', '/ml/features', '/ml',
-      '/risk/exposure', '/risk',
-      '/strategy/detail', '/strategy',
+
+    // 精确匹配子菜单项（叶子节点优先）
+    const leafPaths = [
+      '/ml/compare', '/ml/signals', '/ml/features', '/ml/models',
+      '/risk/exposure', '/risk/rules',
     ];
-    for (const path of allPaths) {
+    for (const path of leafPaths) {
       if (pathname === path || pathname.startsWith(path + '/')) {
         return [path];
       }
     }
+
+    // 然后匹配父菜单（仅在完全匹配时）- 映射到对应的子菜单项
+    const parentPaths = [
+      { path: '/ml', target: '/ml/models' },
+      { path: '/risk', target: '/risk/rules' },
+      { path: '/strategy', target: '/strategy' },
+    ];
+    for (const { path, target } of parentPaths) {
+      if (pathname === path) {
+        return [target];
+      }
+    }
+
     return [pathname];
   };
 
@@ -206,7 +219,15 @@ export default function AppLayout() {
             }}>V</div>
           }}
           selectedKeys={getSelectedKeys()}
-          onSelect={({ itemKey }) => navigate(itemKey as string)}
+          onSelect={({ itemKey }) => {
+            // 处理子菜单项到实际路由的映射
+            const routeMap: Record<string, string> = {
+              '/ml/models': '/ml',
+              '/risk/rules': '/risk',
+            };
+            const targetPath = routeMap[itemKey as string] || (itemKey as string);
+            navigate(targetPath);
+          }}
           style={{ height: '100%' }}
           footer={{
             collapseButton: true,
