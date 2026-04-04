@@ -245,8 +245,9 @@ export default function StrategyPage() {
                   <Button theme="borderless" icon={<IconCode />} onClick={(e) => { e?.stopPropagation(); openCodeView(cls); }}>源码</Button>
                 ]}
               >
-              <Text strong style={{ fontSize: isMobile ? 14 : 16 }}>{cls}</Text>
-            </Card>
+                <Text strong style={{ fontSize: isMobile ? 14 : 16 }}>{cls}</Text>
+              </Card>
+            </div>
           </Col>
         ))}
       </Row>
